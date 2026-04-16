@@ -83,7 +83,7 @@ export class WorkflowStage extends LitElement {
               .icon=${card.icon}
               .name=${card.name}
               .role=${card.role}
-              .highlight=${card.highlight}
+              .indicators=${card.indicators ?? []}
               @click=${() => this._handleCardClick(card.tooltip)}
             ></workflow-card>
           `,

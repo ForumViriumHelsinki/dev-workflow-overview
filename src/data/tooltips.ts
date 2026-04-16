@@ -3,14 +3,118 @@ export interface TooltipDetail {
   gate?: boolean;
 }
 
+export interface DocGap {
+  missing: string[];
+  suggestedLocation?: string;
+}
+
+export interface AutomationOpportunity {
+  what: string;
+  blockedBy?: string;
+}
+
 export interface TooltipData {
   title: string;
   subtitle: string;
   body: string;
   details: (string | TooltipDetail)[];
+  docGap?: DocGap;
+  automationOpportunity?: AutomationOpportunity;
 }
 
 export const tooltips: Record<string, TooltipData> = {
+  /* ─────────────── Setup: Inception ─────────────── */
+  kickoff: {
+    title: "Kick-off Brief",
+    subtitle: "Setup — Align before coding",
+    body: "A lightweight document capturing problem statement, stakeholders, success criteria, and rough scope before any implementation starts. Today this is ad-hoc — sometimes a Podio note, sometimes a Slack thread, sometimes nothing written down at all.",
+    details: [
+      "Should live with the project from day one",
+      "Links the GitHub project to the broader business goal",
+      "Makes it obvious when scope drifts mid-implementation",
+    ],
+    docGap: {
+      missing: [
+        "Kick-off brief template (1-page)",
+        "Stakeholder interview checklist",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/templates/kickoff-brief.md",
+    },
+  },
+  prdadr: {
+    title: "PRD / ADR",
+    subtitle: "Setup — Record requirements and decisions",
+    body: "Product Requirements Documents and Architecture Decision Records describe what we're building and why. A few repos have ad-hoc ADRs, but there is no org-wide template or location convention.",
+    details: [
+      "PRDs: what and why (feature-level)",
+      "ADRs: significant architecture decisions with context and trade-offs",
+      "Numbered sequentially so decisions stay ordered",
+    ],
+    docGap: {
+      missing: [
+        "PRD template",
+        "ADR template with context/decision/consequences sections",
+        "Convention: docs/prds/ and docs/adrs/ with NNNN-kebab-case filenames",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/templates/ (synced into app repos)",
+    },
+  },
+  projectboard: {
+    title: "Project Board",
+    subtitle: "Setup — Track work in GitHub Projects",
+    body: "Each new project is added to an org-wide GitHub Project (e.g. ICT, Platform Automation, R4C). Issues and PRs get routed via the project:* labels defined by the metadata-hygiene rule.",
+    details: [
+      "10 active org projects — labels drive routing automatically",
+      "Issues inherit project via project:* label on creation",
+      "Roadmap columns (Todo / In progress / Done) tracked per project",
+    ],
+  },
+
+  /* ─────────────── Setup: Provision ─────────────── */
+  repoprovision: {
+    title: "Repo from Template",
+    subtitle: "Setup — Bootstrap a new application repo",
+    body: "New application repos are created manually from a reference repo and edited to fit. There is an infrastructure issue template (01-new-application.md), but no scaffolder that generates the repo contents in one step.",
+    details: [
+      "Must include: Dockerfile, deploy/values.yaml, skaffold.yaml, reusable workflow calls",
+      "Should be seeded with .rulesync → Claude/Gemini/Copilot configs",
+      "Should register a project:* label to auto-route its issues",
+    ],
+    automationOpportunity: {
+      what: "A repo-scaffolder CLI (or gh-extension) that, given a repo name and language, creates the repo, commits the standard layout, registers it with the infra repo, and opens the provisioning PR.",
+      blockedBy:
+        "No canonical app template repo yet; infra-side wiring (ArgoCD Application, project label) still manual.",
+    },
+  },
+  gcpprovision: {
+    title: "GCP + CloudSQL + DNS",
+    subtitle: "Setup — Infrastructure request via Terraform",
+    body: "Cloud resources (service accounts, CloudSQL databases, DNS records) are requested via infrastructure-repo issue templates, then provisioned via Terraform Cloud workspaces. Applies are gated by human review.",
+    details: [
+      { text: "Issue templates: 01-new-application, 02-new-database, 04-new-dns", gate: true },
+      { text: "Terraform Cloud plan → review → apply", gate: true },
+      "Workload Identity wires pods to GCP service accounts",
+      "Secrets provisioned into Google Secret Manager for External Secrets to sync",
+    ],
+  },
+  argocdprovision: {
+    title: "ArgoCD Application",
+    subtitle: "Setup — Register app for GitOps deployment",
+    body: "For each application, a matching ArgoCD Application manifest is added to infrastructure/argocd/apps/templates/. It references the shared helm-webapp chart plus the app's own deploy/values.yaml.",
+    details: [
+      "Multi-source: Helm chart from GHCR + values from app repo",
+      "AppProject controls namespace and resource permissions",
+      "Image Updater annotations configure auto-deploy behavior",
+    ],
+    automationOpportunity: {
+      what: "Auto-generate the ArgoCD Application + AppProject entry from a small repo-level descriptor (name, namespace, image pattern) so the infra repo only needs a PR, not hand-crafted YAML.",
+      blockedBy:
+        "No descriptor schema agreed; conventions around namespace and project selection vary per app.",
+    },
+  },
+
   /* Stage 1: Develop */
   agentic: {
     title: "Agentic Development",
@@ -329,6 +433,197 @@ export const tooltips: Record<string, TooltipData> = {
       "Flood guard: max 2 open auto-fix PRs at a time",
       "Deduplication: skips if recent fix(auto): commit exists",
       "Commits use fix(auto): prefix for traceability",
+    ],
+  },
+
+  /* ─────────────── Run: Operate ─────────────── */
+  runbooks: {
+    title: "Runbooks",
+    subtitle: "Run — On-call procedures",
+    body: "Step-by-step guides for handling common production incidents (pod crash loop, CloudSQL failover, expired certificate, DNS issue). Most apps have none; some have scattered notes in Podio or README files.",
+    details: [
+      "A runbook pairs a symptom with a diagnosis and a fix",
+      "Should live in the app repo (or infra repo for shared services)",
+      "Should be linked from the on-call handover doc",
+    ],
+    docGap: {
+      missing: [
+        "Runbook template (symptom → diagnosis → fix → escalation)",
+        "Per-service runbooks for the top-5 alert types",
+        "Runbook index linked from the infrastructure wiki",
+      ],
+      suggestedLocation:
+        "Each app repo → docs/runbooks/ or infrastructure wiki /runbooks",
+    },
+  },
+  alerting: {
+    title: "Alerting",
+    subtitle: "Run — Who gets paged for what",
+    body: "Sentry catches errors, but paging policy, alert routing, and severity conventions are not formalized. It's unclear per-service who owns alerts after hours and at what threshold.",
+    details: [
+      "Sentry issue alerts go to project-specific channels today",
+      "No shared convention for severity (P1/P2/P3) across apps",
+      "No escalation path documented for off-hours incidents",
+    ],
+    docGap: {
+      missing: [
+        "Alert catalogue (what each alert means, who owns it)",
+        "Paging policy and severity definitions",
+        "On-call rotation and escalation chain",
+      ],
+      suggestedLocation:
+        "infrastructure.wiki /operations/alerting.md",
+    },
+  },
+  backupdr: {
+    title: "Backup / DR",
+    subtitle: "Run — Restore procedures and targets",
+    body: "CloudSQL is backed up by Google, but per-app restore procedures, RPO/RTO targets, and DR drills are not documented or rehearsed. Recovery from a destructive change depends on whoever is around.",
+    details: [
+      "CloudSQL PITR is enabled but per-instance retention varies",
+      "No documented restore test schedule",
+      "No agreed RPO/RTO per tier of service",
+    ],
+    docGap: {
+      missing: [
+        "Backup/DR policy (retention, RPO/RTO per service tier)",
+        "Restore runbook (CloudSQL, Secret Manager, GKE state)",
+        "DR drill schedule + result log",
+      ],
+      suggestedLocation:
+        "infrastructure.wiki /operations/backup-dr.md",
+    },
+  },
+
+  /* ─────────────── Evolve ─────────────── */
+  evolveadr: {
+    title: "ADR for Change",
+    subtitle: "Evolve — Record significant redesigns",
+    body: "When a service changes direction (new framework, new data model, new dependency), the reasoning should be captured as an ADR. A few repos follow this; most don't, so rationale is lost in PR descriptions.",
+    details: [
+      "ADRs preserve context for future maintainers",
+      "Prevents re-litigating decisions already made",
+      "Numbered sequentially per repo",
+    ],
+  },
+  migration: {
+    title: "Refactor / Migration",
+    subtitle: "Evolve — Structured change playbook",
+    body: "Migrations (framework upgrades, database schema changes, package replacements) frequently happen ad-hoc. There is no reusable playbook for shadow-mode / dual-write / cutover patterns, so each team reinvents the approach.",
+    details: [
+      "Shadow mode: run new alongside old, compare outputs",
+      "Dual-write: write to both, read from old, then switch",
+      "Cutover: flag-gated, reversible switch",
+    ],
+    docGap: {
+      missing: [
+        "Migration playbook covering shadow/dual-write/cutover patterns",
+        "Checklist for destructive migrations (feature flag, backup, rollback plan)",
+        "Case studies from past migrations",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/docs/migration-playbook.md",
+    },
+  },
+  breakingchange: {
+    title: "Breaking-Change Policy",
+    subtitle: "Evolve — Deprecation windows for consumers",
+    body: "Breaking changes to APIs, schemas, or shared libraries have no org-wide policy for notice periods, deprecation headers, or consumer sign-off. This makes cross-service evolution risky.",
+    details: [
+      "Applies to: HTTP APIs, shared libraries, Helm chart interfaces, event schemas",
+      "Should specify minimum notice, how to signal deprecation, how to verify consumers migrated",
+      "Should pair with the deprecation-notice template",
+    ],
+    docGap: {
+      missing: [
+        "Breaking-change policy (minimum deprecation window, notice format)",
+        "Deprecation header convention for HTTP APIs",
+        "Consumer acknowledgment checklist before removal",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/docs/breaking-change-policy.md",
+    },
+  },
+
+  /* ─────────────── Sunset: Deprecate ─────────────── */
+  deprecationnotice: {
+    title: "Deprecation Notice",
+    subtitle: "Sunset — Announce the sunset date",
+    body: "Before a service is decommissioned, users and dependent teams need a visible notice with a sunset date. Today this is handled ad-hoc — sometimes a Slack message, sometimes a README edit, sometimes nothing.",
+    details: [
+      "Should appear in-app (banner) and in the repo README",
+      "Links to the replacement and migration guide",
+      "Gives time proportional to the blast radius",
+    ],
+    docGap: {
+      missing: [
+        "Deprecation-notice template (in-app banner + README block)",
+        "Sunset checklist (who to notify, in what order, by when)",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/templates/deprecation-notice.md",
+    },
+  },
+  killswitch: {
+    title: "Feature-Flag Kill Switch",
+    subtitle: "Sunset — Instant rollback via GOFF",
+    body: "GoFeatureFlag enables instant disabling of features without a redeploy. For deprecation, a kill switch lets us turn a feature off quickly if the sunset reveals unexpected dependencies.",
+    details: [
+      "GOFF flag evaluated via OpenFeature SDK",
+      "Per-user or percentage rollout/rollback",
+      "No redeploy needed to flip the flag",
+      "Covered by the feature-flags rule in .claude/rules/",
+    ],
+  },
+  usercomms: {
+    title: "User Comms",
+    subtitle: "Sunset — Notify affected teams and users",
+    body: "Dependent teams, external API consumers, and end users need advance notice when a service will be decommissioned. The channel (email, Podio, Slack, on-site banner) depends on the audience — we don't have a standard playbook.",
+    details: [
+      "Internal teams: Podio + Slack",
+      "External API users: email + deprecation headers",
+      "End users: in-app banner + documentation update",
+    ],
+    docGap: {
+      missing: [
+        "User-comms template per audience (internal / API / end-user)",
+        "Notification cadence (T-90d / T-30d / T-7d / sunset day)",
+      ],
+      suggestedLocation:
+        "ForumViriumHelsinki/.github → .github/templates/user-comms.md",
+    },
+  },
+
+  /* ─────────────── Sunset: Decommission ─────────────── */
+  argocdremoval: {
+    title: "ArgoCD Removal",
+    subtitle: "Sunset — Delete the Application manifest",
+    body: "Removing the ArgoCD Application manifest from the infrastructure repo causes ArgoCD to drain and delete the cluster resources. This is a deliberate, reviewable step — not automatic.",
+    details: [
+      { text: "PR in infrastructure repo removes the Application + AppProject entry", gate: true },
+      "Cluster resources are deleted by ArgoCD on next sync",
+      "Any CRDs, PVCs, or namespaces created outside Helm must be cleaned up manually",
+    ],
+  },
+  gcpdeprovision: {
+    title: "GCP Deprovision",
+    subtitle: "Sunset — Tear down cloud resources",
+    body: "Decommissioning cleans up CloudSQL instances, buckets, DNS records, service accounts, and Secret Manager entries via Terraform. Infra repo issue template 07 captures the request.",
+    details: [
+      "Issue template 07-decommission-application triggers the work",
+      "Terraform destroy for resources created via Terraform",
+      "Manual cleanup for anything created outside IaC (ad-hoc buckets, test resources)",
+      "Final snapshot of data before destruction",
+    ],
+  },
+  repoarchive: {
+    title: "Repo Archive",
+    subtitle: "Sunset — Archive the GitHub repo",
+    body: "Once deprovisioned, the GitHub repo is archived (read-only). Archiving preserves history and makes the status obvious, without leaving a maintained-looking repo in the org.",
+    details: [
+      "Archive via GitHub UI or gh CLI",
+      "README should gain a prominent archived notice with link to replacement",
+      "Secrets and webhooks should be removed before archiving",
     ],
   },
 

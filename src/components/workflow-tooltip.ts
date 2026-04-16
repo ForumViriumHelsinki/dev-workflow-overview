@@ -101,6 +101,53 @@ export class WorkflowTooltip extends LitElement {
         color: var(--accent-green);
       }
 
+      /* Callout blocks for doc-gap / automation-opportunity */
+      .callout {
+        margin-top: 1rem;
+        padding: 0.8rem 1rem;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--callout-color);
+        background: color-mix(in srgb, var(--callout-color), transparent 92%);
+      }
+      .callout-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--callout-color);
+        margin-bottom: 0.45rem;
+      }
+      .callout-body {
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        line-height: 1.55;
+      }
+      .callout-list {
+        margin-top: 0.4rem;
+        padding-left: 1rem;
+        list-style: disc;
+        display: flex;
+        flex-direction: column;
+        gap: 0.18rem;
+      }
+      .callout-list li {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+      .callout-meta {
+        margin-top: 0.5rem;
+        font-size: 0.74rem;
+        color: var(--text-muted);
+      }
+      .callout-meta b {
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+
       .close-btn {
         position: absolute;
         top: 1rem;
@@ -162,7 +209,9 @@ export class WorkflowTooltip extends LitElement {
 
   private _close() {
     this.activeTooltip = "";
-    this.dispatchEvent(new CustomEvent("tooltip-close", { bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent("tooltip-close", { bubbles: true, composed: true }),
+    );
   }
 
   private _onOverlayClick(e: MouseEvent) {
@@ -190,6 +239,57 @@ export class WorkflowTooltip extends LitElement {
           <ul class="details">
             ${data.details.map((d) => this._renderDetail(d))}
           </ul>
+          ${data.docGap
+            ? html`
+                <div
+                  class="callout"
+                  style="--callout-color: var(--badge-doc-gap)"
+                >
+                  <div class="callout-heading">
+                    <span class="legend-pill"></span>
+                    Missing documentation
+                  </div>
+                  <div class="callout-body">
+                    These documents do not yet exist and should be authored to
+                    close the gap.
+                  </div>
+                  <ul class="callout-list">
+                    ${data.docGap.missing.map(
+                      (m) => html`<li>${m}</li>`,
+                    )}
+                  </ul>
+                  ${data.docGap.suggestedLocation
+                    ? html`
+                        <div class="callout-meta">
+                          Suggested location:
+                          <b>${data.docGap.suggestedLocation}</b>
+                        </div>
+                      `
+                    : null}
+                </div>
+              `
+            : null}
+          ${data.automationOpportunity
+            ? html`
+                <div
+                  class="callout"
+                  style="--callout-color: var(--badge-automatable)"
+                >
+                  <div class="callout-heading">Automation opportunity</div>
+                  <div class="callout-body">
+                    ${data.automationOpportunity.what}
+                  </div>
+                  ${data.automationOpportunity.blockedBy
+                    ? html`
+                        <div class="callout-meta">
+                          Blocked by:
+                          <b>${data.automationOpportunity.blockedBy}</b>
+                        </div>
+                      `
+                    : null}
+                </div>
+              `
+            : null}
         </div>
       </div>
     `;

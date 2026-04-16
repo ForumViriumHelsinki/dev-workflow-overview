@@ -1,8 +1,9 @@
 import { LitElement, css, html } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, query, state } from "lit/decorators.js";
 import { theme } from "../styles/theme.js";
 import {
   stages,
+  phases,
   gateChips,
   agentCards,
   infraCards,
@@ -11,6 +12,8 @@ import "./workflow-stage.js";
 import "./workflow-card.js";
 import "./workflow-tooltip.js";
 import "./pipeline-arrow.js";
+import "./phase-band.js";
+import "./feedback-arrow.js";
 
 @customElement("workflow-app")
 export class WorkflowApp extends LitElement {
@@ -65,7 +68,7 @@ export class WorkflowApp extends LitElement {
       .legend {
         display: flex;
         justify-content: center;
-        gap: 1.4rem;
+        gap: 1.2rem;
         flex-wrap: wrap;
         padding: 1rem 1.5rem 0;
         font-size: 0.78rem;
@@ -81,6 +84,17 @@ export class WorkflowApp extends LitElement {
         height: 9px;
         border-radius: 50%;
         box-shadow: 0 0 6px color-mix(in srgb, var(--dot-color), transparent 50%);
+      }
+      .legend-pill {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.6rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 0.12rem 0.4rem;
+        border-radius: var(--radius-sm);
+        color: var(--pill-color);
+        background: color-mix(in srgb, var(--pill-color), transparent 88%);
       }
 
       /* Section labels */
@@ -108,14 +122,10 @@ export class WorkflowApp extends LitElement {
         );
       }
 
-      /* Pipeline */
+      /* Pipeline — outer scroller; inner rail holds the feedback arrow overlay */
       .pipeline {
-        display: flex;
-        align-items: flex-start;
-        gap: 0;
-        padding: 1.2rem 1.5rem 1.8rem;
+        padding: 1.2rem 1.5rem 4rem;
         overflow-x: auto;
-        scroll-snap-type: x mandatory;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
         scrollbar-color: var(--border) transparent;
@@ -129,6 +139,39 @@ export class WorkflowApp extends LitElement {
       .pipeline::-webkit-scrollbar-thumb {
         background: var(--border);
         border-radius: 3px;
+      }
+
+      .pipeline-rail {
+        position: relative;
+        display: inline-block;
+        min-width: 100%;
+      }
+
+      .phase-row,
+      .stage-row {
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .phase-row {
+        align-items: stretch;
+      }
+
+      .phase-gap {
+        width: 44px;
+        flex: 0 0 44px;
+      }
+
+      .phase-column {
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 auto;
+      }
+
+      .phase-stages {
+        display: flex;
+        align-items: flex-start;
+        flex: 0 0 auto;
       }
 
       /* Bottom sections */
@@ -279,16 +322,17 @@ export class WorkflowApp extends LitElement {
         padding: 1.5rem;
         color: var(--text-muted);
         font-size: 0.72rem;
-        opacity: 0.5;
+        opacity: 0.55;
         border-top: 1px solid var(--border-subtle);
         max-width: 1100px;
         margin: 0 auto;
+        line-height: 1.55;
       }
 
       /* Responsive */
       @media (max-width: 900px) {
         .pipeline {
-          padding: 1rem 0.5rem 1.5rem;
+          padding: 1rem 0.5rem 3.5rem;
         }
         workflow-stage {
           width: 180px;
@@ -298,6 +342,9 @@ export class WorkflowApp extends LitElement {
   ];
 
   @state() private _activeTooltip = "";
+
+  @query(".pipeline") private _pipelineEl!: HTMLElement;
+  @query(".pipeline-rail") private _railEl!: HTMLElement;
 
   private _onCardClick(e: CustomEvent) {
     this._activeTooltip = e.detail.tooltip;
@@ -311,6 +358,18 @@ export class WorkflowApp extends LitElement {
     this._activeTooltip = key;
   }
 
+  /** Lookup helpers used by the feedback-arrow component. */
+  private _getStageEl(title: string): HTMLElement | null {
+    if (!this._railEl) return null;
+    const el = this._railEl.querySelector<HTMLElement>(
+      `workflow-stage[data-title="${CSS.escape(title)}"]`,
+    );
+    return el;
+  }
+  private _getPipelineContainer(): HTMLElement | null {
+    return this._railEl ?? null;
+  }
+
   private _renderLegendDot(color: string, label: string) {
     return html`
       <div class="legend-item">
@@ -320,11 +379,20 @@ export class WorkflowApp extends LitElement {
     `;
   }
 
+  private _renderLegendPill(color: string, label: string, caption: string) {
+    return html`
+      <div class="legend-item">
+        <span class="legend-pill" style="--pill-color:${color}">${label}</span>
+        ${caption}
+      </div>
+    `;
+  }
+
   render() {
     return html`
       <header>
-        <h1>Forum Virium Helsinki — Development Workflow</h1>
-        <p>The journey of a code change from intent to production</p>
+        <h1>Forum Virium Helsinki — Project Lifecycle</h1>
+        <p>From inception to sunset — the whole life of a service</p>
         <div class="header-note">
           Agentic-first: most code is written by AI agents (Claude Code,
           Gemini), reviewed by humans with automated gates
@@ -332,30 +400,85 @@ export class WorkflowApp extends LitElement {
       </header>
 
       <div class="legend">
-        ${this._renderLegendDot("var(--accent-cyan)", "AI agents")}
-        ${this._renderLegendDot("var(--accent-green)", "Quality / security gates")}
-        ${this._renderLegendDot("var(--accent-blue)", "Developer tools")}
-        ${this._renderLegendDot("var(--accent-purple)", "Infrastructure")}
-        ${this._renderLegendDot("var(--accent-orange)", "Runtime")}
-        ${this._renderLegendDot("var(--accent-pink)", "Monitoring")}
+        ${this._renderLegendPill("var(--badge-ai)", "AI", "AI-driven")}
+        ${this._renderLegendPill(
+          "var(--badge-gate)",
+          "GATE",
+          "Blocks on failure",
+        )}
+        ${this._renderLegendPill(
+          "var(--badge-manual)",
+          "MANUAL",
+          "Human-operated today",
+        )}
+        ${this._renderLegendPill(
+          "var(--badge-automatable)",
+          "AUTOMATE",
+          "Automation opportunity",
+        )}
+        ${this._renderLegendPill(
+          "var(--badge-doc-gap)",
+          "DOC",
+          "Documentation gap",
+        )}
       </div>
 
       <div class="section-label">
-        Main pipeline — the path every change follows
+        Main pipeline — the full journey every service goes through
       </div>
 
       <div class="pipeline" @card-click=${this._onCardClick}>
-        ${stages.map(
-          (stage, i) => html`
-            ${i > 0 ? html`<pipeline-arrow></pipeline-arrow>` : null}
-            <workflow-stage
-              .number=${stage.number}
-              .stageTitle=${stage.title}
-              .color=${stage.color}
-              .cards=${stage.cards}
-            ></workflow-stage>
-          `,
-        )}
+        <div class="pipeline-rail">
+          <!-- Top row: phase bands -->
+          <div class="phase-row">
+            ${phases.map((phase, phaseIdx) => {
+              const phaseStages = stages.filter((s) => s.phase === phase.id);
+              return html`
+                ${phaseIdx > 0
+                  ? html`<div class="phase-gap"></div>`
+                  : null}
+                <phase-band
+                  .label=${phase.label}
+                  .color=${phase.color}
+                  .stageCount=${phaseStages.length}
+                ></phase-band>
+              `;
+            })}
+          </div>
+
+          <!-- Bottom row: stages with inter-stage and inter-phase arrows -->
+          <div class="stage-row">
+            ${phases.map((phase, phaseIdx) => {
+              const phaseStages = stages.filter((s) => s.phase === phase.id);
+              return html`
+                ${phaseIdx > 0
+                  ? html`<pipeline-arrow></pipeline-arrow>`
+                  : null}
+                <div class="phase-stages">
+                  ${phaseStages.map(
+                    (stage, i) => html`
+                      ${i > 0 ? html`<pipeline-arrow></pipeline-arrow>` : null}
+                      <workflow-stage
+                        data-title=${stage.title}
+                        .number=${stage.number}
+                        .stageTitle=${stage.title}
+                        .color=${stage.color}
+                        .cards=${stage.cards}
+                      ></workflow-stage>
+                    `,
+                  )}
+                </div>
+              `;
+            })}
+          </div>
+
+          <!-- Feedback arrow overlays the rail, tracking Monitor → Develop -->
+          <feedback-arrow
+            .container=${() => this._getPipelineContainer()}
+            .fromElement=${() => this._getStageEl("Monitor")}
+            .toElement=${() => this._getStageEl("Develop")}
+          ></feedback-arrow>
+        </div>
       </div>
 
       <div class="bottom-sections">
@@ -451,8 +574,10 @@ export class WorkflowApp extends LitElement {
       </div>
 
       <footer>
-        Click any card for details &middot; Cards marked GATE block merges if
-        they fail &middot; Cards marked AI are powered by Claude or Gemini
+        Click any card for details. Unbadged cards are automated and documented
+        by default — badges only appear where there is a gate, AI involvement,
+        manual step, automation opportunity, or documentation gap worth
+        surfacing.
       </footer>
 
       <workflow-tooltip

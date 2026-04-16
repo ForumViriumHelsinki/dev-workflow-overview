@@ -20,6 +20,13 @@ export const theme = css`
     --accent-cyan: #39d2f5;
     --accent-yellow: #e3b341;
     --accent-red: #f85149;
+
+    /* Indicator badge tokens */
+    --badge-gate: var(--accent-green);
+    --badge-ai: var(--accent-cyan);
+    --badge-manual: var(--accent-orange);
+    --badge-automatable: var(--accent-purple);
+    --badge-doc-gap: var(--accent-yellow);
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 16px;

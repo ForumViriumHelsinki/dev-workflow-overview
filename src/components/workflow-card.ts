@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.js";
+import type { Indicator } from "../data/stages.js";
 
 const icons: Record<string, string> = {
   robot: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></svg>`,
@@ -27,6 +28,23 @@ const icons: Record<string, string> = {
   bug: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>`,
   clipboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>`,
   wrench: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+  kanban: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v6"/><path d="M12 7v10"/><path d="M16 7v4"/></svg>`,
+  template: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="11" width="8" height="10" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/></svg>`,
+  book: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
+  database: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>`,
+  migrate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h14"/><path d="m13 6 6 6-6 6"/><path d="M21 3v18"/></svg>`,
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
+  mail: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+  archive: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>`,
+};
+
+const badgeLabels: Record<Indicator, string> = {
+  gate: "GATE",
+  ai: "AI",
+  manual: "MANUAL",
+  automatable: "AUTOMATE",
+  "doc-gap": "DOC",
 };
 
 @customElement("workflow-card")
@@ -64,7 +82,7 @@ export class WorkflowCard extends LitElement {
         background: var(--surface-active);
       }
 
-      /* Highlight variants */
+      /* Border variants — doc-gap takes visual precedence with a dashed border */
       .card.gate {
         border-color: color-mix(in srgb, var(--accent-green), transparent 50%);
       }
@@ -85,25 +103,56 @@ export class WorkflowCard extends LitElement {
           0 0 0 1px color-mix(in srgb, var(--accent-cyan), transparent 85%);
       }
 
-      /* Badge */
+      .card.doc-gap {
+        border-style: dashed;
+        border-color: color-mix(in srgb, var(--badge-doc-gap), transparent 40%);
+      }
+      .card.doc-gap:hover {
+        border-color: var(--badge-doc-gap);
+        box-shadow:
+          var(--shadow-md),
+          0 0 0 1px color-mix(in srgb, var(--badge-doc-gap), transparent 80%);
+      }
+
+      /* Badge row */
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-bottom: 0.4rem;
+      }
       .badge {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.6rem;
-        font-size: 0.6rem;
+        font-size: 0.56rem;
         font-weight: 700;
         letter-spacing: 0.06em;
-        padding: 0.15rem 0.4rem;
+        padding: 0.12rem 0.35rem;
         border-radius: var(--radius-sm);
         text-transform: uppercase;
+        line-height: 1.2;
       }
       .badge.gate {
-        color: var(--accent-green);
-        background: color-mix(in srgb, var(--accent-green), transparent 88%);
+        color: var(--badge-gate);
+        background: color-mix(in srgb, var(--badge-gate), transparent 88%);
       }
       .badge.ai {
-        color: var(--accent-cyan);
-        background: color-mix(in srgb, var(--accent-cyan), transparent 88%);
+        color: var(--badge-ai);
+        background: color-mix(in srgb, var(--badge-ai), transparent 88%);
+      }
+      .badge.manual {
+        color: var(--badge-manual);
+        background: color-mix(in srgb, var(--badge-manual), transparent 88%);
+      }
+      .badge.automatable {
+        color: var(--badge-automatable);
+        background: color-mix(
+          in srgb,
+          var(--badge-automatable),
+          transparent 88%
+        );
+      }
+      .badge.doc-gap {
+        color: var(--badge-doc-gap);
+        background: color-mix(in srgb, var(--badge-doc-gap), transparent 88%);
       }
 
       .icon {
@@ -121,6 +170,9 @@ export class WorkflowCard extends LitElement {
       }
       .card.ai .icon {
         color: color-mix(in srgb, var(--accent-cyan), var(--text-secondary));
+      }
+      .card.doc-gap .icon {
+        color: color-mix(in srgb, var(--badge-doc-gap), var(--text-secondary));
       }
 
       .name {
@@ -141,16 +193,30 @@ export class WorkflowCard extends LitElement {
   @property() icon = "";
   @property() name = "";
   @property() role = "";
-  @property() highlight?: "gate" | "ai";
+  @property({ type: Array }) indicators: Indicator[] = [];
+
+  /** doc-gap > gate > ai — highest-signal border wins */
+  private get _borderClass(): string {
+    if (this.indicators.includes("doc-gap")) return "doc-gap";
+    if (this.indicators.includes("gate")) return "gate";
+    if (this.indicators.includes("ai")) return "ai";
+    return "";
+  }
 
   render() {
     const iconSvg = icons[this.icon] ?? "";
+    const border = this._borderClass;
     return html`
-      <div class="card ${this.highlight ?? ""}">
-        ${this.highlight
-          ? html`<span class="badge ${this.highlight}"
-              >${this.highlight === "gate" ? "GATE" : "AI"}</span
-            >`
+      <div class="card ${border}">
+        ${this.indicators.length
+          ? html`
+              <div class="badges">
+                ${this.indicators.map(
+                  (i) =>
+                    html`<span class="badge ${i}">${badgeLabels[i]}</span>`,
+                )}
+              </div>
+            `
           : null}
         <div class="icon" .innerHTML=${iconSvg}></div>
         <div class="name">${this.name}</div>
