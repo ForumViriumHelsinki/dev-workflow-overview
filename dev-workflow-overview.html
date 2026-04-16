@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FVH Development Workflow Overview</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-hover: #334155;
+    --border: #475569;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-green: #4ade80;
+    --accent-purple: #a78bfa;
+    --accent-orange: #fb923c;
+    --accent-pink: #f472b6;
+    --accent-cyan: #22d3ee;
+    --accent-yellow: #facc15;
+    --accent-red: #f87171;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 0.5rem;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header p {
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    font-size: 0.95rem;
+  }
+  .header-note {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin-top: 0.3rem;
+    font-style: italic;
+    opacity: 0.8;
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    padding: 0.8rem 1rem 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ── Section titles ── */
+  .section-label {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    opacity: 0.5;
+  }
+
+  /* ── Pipeline container ── */
+  .pipeline {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    padding: 1rem 1.5rem 1.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Stage ── */
+  .stage {
+    flex: 0 0 auto;
+    width: 220px;
+    scroll-snap-align: center;
+    position: relative;
+  }
+
+  .stage-header {
+    text-align: center;
+    margin-bottom: 0.6rem;
+  }
+  .stage-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+  .stage-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Cards ── */
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  .card:hover {
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+  .card.highlight-gate {
+    border-color: var(--accent-green);
+    box-shadow: inset 0 0 0 1px rgba(74,222,128,0.15);
+  }
+  .card.highlight-gate::after {
+    content: 'GATE';
+    position: absolute;
+    top: 0.45rem;
+    right: 0.55rem;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--accent-green);
+    letter-spacing: 0.06em;
+    background: rgba(74,222,128,0.1);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+  }
+  .card.highlight-ai {
+    border-color: var(--accent-cyan);
+    box-shadow: inset 0 0 0 1px rgba(34,211,238,0.15);
+  }
+  .card.highlight-ai::after {
+    content: 'AI';
+    position: absolute;
+    top: 0.45rem;
+    right: 0.55rem;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    letter-spacing: 0.06em;
+    background: rgba(34,211,238,0.1);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+  }
+  .card-icon {
+    font-size: 1.3rem;
+    margin-bottom: 0.25rem;
+  }
+  .card-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+  .card-role {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+  }
+
+  /* ── Arrow connectors ── */
+  .arrow {
+    flex: 0 0 auto;
+    width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 2.8rem;
+    color: var(--border);
+    font-size: 1.5rem;
+    user-select: none;
+  }
+  .arrow svg {
+    width: 40px;
+    height: 20px;
+  }
+
+  /* ── Tooltip ── */
+  .tooltip-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    animation: fadeIn 0.15s ease;
+  }
+  .tooltip-overlay.active { display: flex; align-items: center; justify-content: center; }
+
+  .tooltip-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem 1.8rem;
+    max-width: 520px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: slideUp 0.2s ease;
+    position: relative;
+  }
+  .tooltip-panel h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .tooltip-panel .subtitle {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  .tooltip-panel p {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .tooltip-panel .detail-list {
+    margin-top: 0.6rem;
+    padding-left: 0;
+    list-style: none;
+  }
+  .tooltip-panel .detail-list li {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.25rem 0;
+    padding-left: 1.1rem;
+    position: relative;
+  }
+  .tooltip-panel .detail-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent-blue);
+  }
+  .tooltip-panel .detail-list li.gate::before {
+    content: '✓';
+    color: var(--accent-green);
+  }
+  .tooltip-close {
+    position: absolute;
+    top: 0.8rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tooltip-close:hover { color: var(--text); }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Bottom sections ── */
+  .bottom-sections {
+    max-width: 1100px;
+    margin: 0 auto 1.5rem;
+    padding: 0 1.5rem;
+  }
+
+  .flow-summary {
+    margin-bottom: 2rem;
+  }
+  .flow-summary h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.8rem;
+  }
+  .flow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .flow-card:hover {
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+  .flow-card h4 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .flow-card p {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* ── Agent banner ── */
+  .agent-banner {
+    background: linear-gradient(135deg, rgba(34,211,238,0.08), rgba(167,139,250,0.08));
+    border: 1px solid rgba(34,211,238,0.25);
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 2rem;
+  }
+  .agent-banner h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    margin-bottom: 0.5rem;
+  }
+  .agent-banner p {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+
+  /* ── Gates summary ── */
+  .gates-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+  }
+  .gate-chip {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 20px;
+    background: rgba(74,222,128,0.1);
+    color: var(--accent-green);
+    border: 1px solid rgba(74,222,128,0.25);
+  }
+  .gate-chip.security {
+    background: rgba(248,113,113,0.1);
+    color: var(--accent-red);
+    border-color: rgba(248,113,113,0.25);
+  }
+  .gate-chip.ai {
+    background: rgba(34,211,238,0.1);
+    color: var(--accent-cyan);
+    border-color: rgba(34,211,238,0.25);
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 1rem;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    opacity: 0.6;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .pipeline { padding: 1rem 0.5rem 1.5rem; }
+    .stage { width: 180px; }
+    .arrow { width: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Forum Virium Helsinki — Development Workflow</h1>
+  <p>The journey of a code change from intent to production</p>
+  <div class="header-note">Agentic-first: most code is written by AI agents (Claude Code, Gemini), reviewed by humans with automated gates</div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-cyan)"></div> AI agents</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div> Quality / security gates</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-blue)"></div> Developer tools</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-purple)"></div> Infrastructure</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-orange)"></div> Runtime</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent-pink)"></div> Monitoring</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MAIN PIPELINE                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="section-label">Main pipeline — the path every change follows</div>
+<div class="pipeline" id="pipeline">
+
+  <!-- ── 1. Intent & Agentic Development ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-cyan); color:var(--bg);">1</div>
+      <div class="stage-title">Develop</div>
+    </div>
+    <div class="cards">
+      <div class="card highlight-ai" data-tooltip="agentic">
+        <div class="card-icon">🤖</div>
+        <div class="card-name">Claude Code / Gemini</div>
+        <div class="card-role">Agents write code from issues, prompts, or @-mentions</div>
+      </div>
+      <div class="card" data-tooltip="plugins">
+        <div class="card-icon">🧩</div>
+        <div class="card-name">Claude Plugins</div>
+        <div class="card-role">60+ skills enforce standards as code is generated</div>
+      </div>
+      <div class="card" data-tooltip="skaffold">
+        <div class="card-icon">🔄</div>
+        <div class="card-name">Skaffold Dev</div>
+        <div class="card-role">Live-reload in a local K8s cluster</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 2. Commit & Push ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-blue); color:var(--bg);">2</div>
+      <div class="stage-title">Commit & Push</div>
+    </div>
+    <div class="cards">
+      <div class="card highlight-gate" data-tooltip="precommit">
+        <div class="card-icon">🛡️</div>
+        <div class="card-name">Pre-commit Hooks</div>
+        <div class="card-role">Lint, format, scan secrets locally</div>
+      </div>
+      <div class="card" data-tooltip="conventional">
+        <div class="card-icon">📝</div>
+        <div class="card-name">Conventional Commits</div>
+        <div class="card-role">feat:, fix:, chore: drives auto-versioning</div>
+      </div>
+      <div class="card" data-tooltip="pr">
+        <div class="card-icon">🔀</div>
+        <div class="card-name">Pull Request</div>
+        <div class="card-role">Review gate — triggers all checks</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 3. AI Review ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-cyan); color:var(--bg);">3</div>
+      <div class="stage-title">AI Review</div>
+    </div>
+    <div class="cards">
+      <div class="card highlight-ai" data-tooltip="claudereview">
+        <div class="card-icon">👁️</div>
+        <div class="card-name">Claude PR Review</div>
+        <div class="card-role">Auto-reviews every PR on open/sync</div>
+      </div>
+      <div class="card highlight-ai" data-tooltip="conventionalfix">
+        <div class="card-icon">✍️</div>
+        <div class="card-name">Title Enforcer</div>
+        <div class="card-role">Auto-fixes PR titles to conventional format</div>
+      </div>
+      <div class="card" data-tooltip="humanreview">
+        <div class="card-icon">👤</div>
+        <div class="card-name">Human Review</div>
+        <div class="card-role">Quick scan — standards are already enforced</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 4. CI Quality & Security Gates ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-green); color:var(--bg);">4</div>
+      <div class="stage-title">CI Gates</div>
+    </div>
+    <div class="cards">
+      <div class="card highlight-gate" data-tooltip="securitygates">
+        <div class="card-icon">🔒</div>
+        <div class="card-name">Security Gates (3)</div>
+        <div class="card-role">Secrets, dependency CVEs, OWASP Top 10</div>
+      </div>
+      <div class="card highlight-gate" data-tooltip="qualitygates">
+        <div class="card-icon">✅</div>
+        <div class="card-name">Quality Gates (3)</div>
+        <div class="card-role">Code smells, async patterns, TS strictness</div>
+      </div>
+      <div class="card highlight-gate" data-tooltip="a11ygates">
+        <div class="card-icon">♿</div>
+        <div class="card-name">Accessibility Gates (2)</div>
+        <div class="card-role">ARIA correctness, WCAG 2.1 compliance</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 5. Release ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-green); color:var(--bg);">5</div>
+      <div class="stage-title">Release</div>
+    </div>
+    <div class="cards">
+      <div class="card" data-tooltip="releaseplease">
+        <div class="card-icon">🏷️</div>
+        <div class="card-name">release-please</div>
+        <div class="card-role">Auto version bump + changelog from commits</div>
+      </div>
+      <div class="card" data-tooltip="containerbuild">
+        <div class="card-icon">📦</div>
+        <div class="card-name">Container Build</div>
+        <div class="card-role">Docker image built + pushed to GHCR</div>
+      </div>
+      <div class="card" data-tooltip="promote">
+        <div class="card-icon">🚀</div>
+        <div class="card-name">Image Promotion</div>
+        <div class="card-role">Retag :next → semver in seconds</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 6. Deploy ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-purple); color:var(--bg);">6</div>
+      <div class="stage-title">Deploy</div>
+    </div>
+    <div class="cards">
+      <div class="card" data-tooltip="imageupdater">
+        <div class="card-icon">🔁</div>
+        <div class="card-name">Image Updater</div>
+        <div class="card-role">Detects new image, commits tag to repo</div>
+      </div>
+      <div class="card" data-tooltip="argocd">
+        <div class="card-icon">🎯</div>
+        <div class="card-name">ArgoCD (GitOps)</div>
+        <div class="card-role">Syncs Git state to Kubernetes cluster</div>
+      </div>
+      <div class="card" data-tooltip="helm">
+        <div class="card-icon">⎈</div>
+        <div class="card-name">Helm Charts</div>
+        <div class="card-role">Shared templates for all applications</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 7. Run ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-orange); color:var(--bg);">7</div>
+      <div class="stage-title">Run</div>
+    </div>
+    <div class="cards">
+      <div class="card" data-tooltip="gke">
+        <div class="card-icon">☁️</div>
+        <div class="card-name">GKE Autopilot</div>
+        <div class="card-role">Managed Kubernetes on Google Cloud</div>
+      </div>
+      <div class="card" data-tooltip="secrets">
+        <div class="card-icon">🔑</div>
+        <div class="card-name">Secrets & Config</div>
+        <div class="card-role">Google Secret Manager + External Secrets</div>
+      </div>
+      <div class="card" data-tooltip="featureflags">
+        <div class="card-icon">🚩</div>
+        <div class="card-name">Feature Flags</div>
+        <div class="card-role">GoFeatureFlag for safe rollouts</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow"><svg viewBox="0 0 40 20"><path d="M2 10 L30 10 M25 4 L32 10 L25 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ── 8. Monitor ── -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-number" style="background:var(--accent-pink); color:var(--bg);">8</div>
+      <div class="stage-title">Monitor</div>
+    </div>
+    <div class="cards">
+      <div class="card" data-tooltip="sentry">
+        <div class="card-icon">🐛</div>
+        <div class="card-name">Sentry</div>
+        <div class="card-role">Error tracking + performance monitoring</div>
+      </div>
+      <div class="card highlight-gate" data-tooltip="kyverno">
+        <div class="card-icon">📋</div>
+        <div class="card-name">Kyverno Policies</div>
+        <div class="card-role">Runtime security enforcement in cluster</div>
+      </div>
+      <div class="card highlight-ai" data-tooltip="autofix">
+        <div class="card-icon">🔧</div>
+        <div class="card-name">Auto-Fix Agent</div>
+        <div class="card-role">Claude auto-fixes CI failures or files issues</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- QUALITY & SECURITY GATES STRIP                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="bottom-sections">
+  <div class="flow-summary">
+    <h2 style="color:var(--accent-green);">All Quality & Security Gates</h2>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.8rem;">These checks run automatically. Code that fails a gate cannot be merged. Click any card above marked <span style="color:var(--accent-green);font-weight:600;">GATE</span> for details.</p>
+    <div class="gates-strip">
+      <span class="gate-chip security">Secrets scan</span>
+      <span class="gate-chip security">Dependency CVEs</span>
+      <span class="gate-chip security">OWASP Top 10</span>
+      <span class="gate-chip security">Trivy image scan</span>
+      <span class="gate-chip">Tests pass</span>
+      <span class="gate-chip">Lint clean</span>
+      <span class="gate-chip">Code smell check</span>
+      <span class="gate-chip">Async pattern check</span>
+      <span class="gate-chip">TypeScript strictness</span>
+      <span class="gate-chip">ARIA correctness</span>
+      <span class="gate-chip">WCAG 2.1 compliance</span>
+      <span class="gate-chip">Pre-commit hooks</span>
+      <span class="gate-chip">Conventional commit titles</span>
+      <span class="gate-chip security">Kyverno (runtime)</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- AI AGENTS LAYER                                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="flow-summary">
+    <h2 style="color:var(--accent-cyan);">AI Agent Layer — Claude & Gemini on GitHub</h2>
+    <div class="flow-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <div class="flow-card" data-tooltip="claudemention">
+        <h4>💬 @claude on Issues/PRs</h4>
+        <p>Mention @claude on any issue or PR and it starts working — writes code, commits progress, asks for feedback. Up to 30 turns per invocation.</p>
+      </div>
+      <div class="flow-card" data-tooltip="claudereviewdetail">
+        <h4>👁️ Auto PR Review</h4>
+        <p>Every PR is automatically reviewed by Claude on open and sync. Skips bot PRs and release-please PRs. Runs concurrently.</p>
+      </div>
+      <div class="flow-card" data-tooltip="autofixdetail">
+        <h4>🔧 Auto-Fix Failures</h4>
+        <p>When CI fails, Claude analyzes logs, applies fixes for lint/type/format errors, and opens issues for design problems. Flood guard limits to 2 open fix PRs.</p>
+      </div>
+      <div class="flow-card" data-tooltip="rulesync">
+        <h4>📐 AI Rules Sync</h4>
+        <p>Canonical rules in .rulesync/ are auto-synced to Claude Code, Gemini, Copilot, and Cursor configs. One source of truth for all AI tools.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- GIT-REPO-AGENT                                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="agent-banner" data-tooltip="gitrepoagent" style="cursor:pointer;">
+    <h3>🧬 git-repo-agent — Async Repository Quality Maintenance</h3>
+    <p>A custom Claude Agent SDK application that autonomously maintains repository health across all projects. It runs independently of the normal development cycle — onboarding new repos, scoring health across 5 categories (docs, tests, security, quality, CI), auto-fixing safe issues, and diagnosing pipeline failures by correlating kubectl, ArgoCD, GitHub Actions, and Sentry data. Seven specialized subagents (blueprint, configure, quality, security, docs, test-runner, diagnose) handle different aspects. The key value: repositories stay healthy even when no one is actively working on them.</p>
+    <div class="gates-strip" style="margin-top:0.6rem;">
+      <span class="gate-chip ai">Onboard new repos</span>
+      <span class="gate-chip ai">Health scoring</span>
+      <span class="gate-chip ai">Auto-fix safe issues</span>
+      <span class="gate-chip ai">Pipeline diagnostics</span>
+      <span class="gate-chip ai">7 specialist subagents</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- INFRASTRUCTURE LAYER                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="flow-summary">
+    <h2 style="color:var(--accent-purple);">Infrastructure Layer — managed separately via Terraform</h2>
+    <div class="flow-grid">
+      <div class="flow-card" data-tooltip="terraform">
+        <h4>☁️ Terraform Cloud</h4>
+        <p>5 workspaces manage GCP, GitHub, Sentry, OneLogin, and Twingate. Changes go through plan → review → apply.</p>
+      </div>
+      <div class="flow-card" data-tooltip="renovate">
+        <h4>📦 Renovate Bot</h4>
+        <p>Self-hosted in infrastructure repo. Keeps Helm charts, Actions versions, and Terraform providers current.</p>
+      </div>
+      <div class="flow-card" data-tooltip="reusableworkflows">
+        <h4>⚙️ 21 Reusable Workflows</h4>
+        <p>Central .github repo provides all CI templates. One update improves every repo. No per-repo CI maintenance.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>Click any card for details · Cards marked GATE block merges if they fail · Cards marked AI are powered by Claude or Gemini</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TOOLTIP OVERLAY                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="tooltip-overlay" id="tooltipOverlay">
+  <div class="tooltip-panel" id="tooltipPanel">
+    <button class="tooltip-close" id="tooltipClose">&times;</button>
+    <h3 id="ttTitle"></h3>
+    <div class="subtitle" id="ttSubtitle"></div>
+    <p id="ttBody"></p>
+    <ul class="detail-list" id="ttDetails"></ul>
+  </div>
+</div>
+
+<script>
+const tooltips = {
+  /* ── Stage 1: Develop ── */
+  agentic: {
+    title: '🤖 Agentic Development',
+    subtitle: 'Stage 1 — AI-first code generation',
+    body: 'Most code changes originate from AI agents rather than manual editing. Claude Code and Gemini CLI write code from GitHub issues, @-mentions, or direct prompts. The developer\'s role shifts to directing intent, reviewing output, and approving changes.',
+    details: [
+      'Claude Code runs in terminal or Cowork desktop app',
+      '@claude on a GitHub issue triggers autonomous implementation',
+      'Gemini CLI provides an alternative agent for code generation',
+      'MCP integrations connect agents to Sentry, GitHub, and more',
+      'Project rules in .claude/rules/ constrain agent behavior per repo'
+    ]
+  },
+  plugins: {
+    title: '🧩 Claude Plugins',
+    subtitle: 'Stage 1 — Standards enforcement at generation time',
+    body: '60+ plugin skills guide AI agents as they write code. Instead of catching problems later in CI, the plugins ensure standards are followed during code generation — container patterns, commit conventions, testing strategies, Helm values, and more.',
+    details: [
+      'Plugins cover: git, containers, Terraform, Kubernetes, testing, CI/CD',
+      'Skills like deploy-values.md teach Claude correct Helm patterns',
+      'Pre-commit, conventional commits, and branch naming enforced inline',
+      'Custom marketplace: laurigates/claude-plugins',
+      'This is why human review can be quick — standards are built in'
+    ]
+  },
+  skaffold: {
+    title: '🔄 Skaffold Dev',
+    subtitle: 'Stage 1 — Local development loop',
+    body: 'For changes that need local testing, Skaffold watches source files and auto-redeploys to a local Kubernetes cluster via OrbStack. Changes appear in seconds.',
+    details: [
+      'File sync copies changed files without rebuilding the image',
+      'OrbStack provides local K8s — access services via k8s.orb.local',
+      'Mimics production environment for realistic local testing'
+    ]
+  },
+
+  /* ── Stage 2: Commit & Push ── */
+  precommit: {
+    title: '🛡️ Pre-commit Hooks',
+    subtitle: 'Stage 2 — Local quality gate',
+    body: 'Before any commit is created, pre-commit hooks catch issues locally. This prevents broken code from reaching GitHub and wasting CI minutes.',
+    details: [
+      {text: 'Gitleaks scans for accidentally committed secrets', gate: true},
+      {text: 'Terraform fmt/validate checks infrastructure code', gate: true},
+      {text: 'YAML linting, Helm lint, Trivy IaC scanning', gate: true},
+      {text: 'Runs automatically — no developer action needed', gate: false}
+    ]
+  },
+  conventional: {
+    title: '📝 Conventional Commits',
+    subtitle: 'Stage 2 — Structured commit messages',
+    body: 'Every commit follows type(scope): description format. This drives automated versioning — "feat:" bumps minor, "fix:" bumps patch. AI agents follow this convention automatically via plugin rules.',
+    details: [
+      'feat: → minor version bump (new feature)',
+      'fix: → patch version bump (bug fix)',
+      'chore:, docs:, refactor: → no version bump',
+      'BREAKING CHANGE in footer → major version bump',
+      'PR titles also enforced — auto-fixed if wrong'
+    ]
+  },
+  pr: {
+    title: '🔀 Pull Request',
+    subtitle: 'Stage 2 — Review gate',
+    body: 'All changes to main go through a Pull Request. Opening a PR triggers the full suite of automated checks, AI review, and enables human review. This is the gateway to the release pipeline.',
+    details: [
+      'Opening a PR triggers all CI checks + Claude review automatically',
+      'PR titles must follow conventional commit format',
+      'Labels, assignees, and milestones tracked for hygiene',
+      'GitHub Actions: 21 reusable workflows available'
+    ]
+  },
+
+  /* ── Stage 3: AI Review ── */
+  claudereview: {
+    title: '👁️ Claude PR Review',
+    subtitle: 'Stage 3 — Automated code review',
+    body: 'Every PR is automatically reviewed by Claude when opened or updated. It examines the diff, checks against project rules, and leaves actionable review comments. Bot PRs and release-please PRs are skipped.',
+    details: [
+      'Triggers on PR open, synchronize, and reopen events',
+      'Concurrent reviews with cancel-in-progress for rapid iteration',
+      'Skips release-please PRs and bot-authored PRs',
+      'Review prompt is configurable per repository',
+      'Uses the same project rules that guided code generation'
+    ]
+  },
+  conventionalfix: {
+    title: '✍️ Conventional Commit Title Enforcer',
+    subtitle: 'Stage 3 — Auto-fix PR titles',
+    body: 'If a PR title doesn\'t follow conventional commit format, this workflow automatically fixes it. Since PR titles become commit messages on merge (and drive versioning), this ensures correct automated releases.',
+    details: [
+      'Runs on every PR open and title edit',
+      'Rewrites titles to feat:, fix:, chore:, etc. format',
+      'Critical for release-please to calculate version bumps correctly',
+      'No manual intervention needed'
+    ]
+  },
+  humanreview: {
+    title: '👤 Human Review',
+    subtitle: 'Stage 3 — Efficient oversight',
+    body: 'The developer reviews changes, but doesn\'t need to go line-by-line. Since Claude plugins enforce standards during generation and automated gates catch regressions, human review focuses on intent, architecture, and business logic.',
+    details: [
+      'Standards already enforced by 60+ plugin skills at generation time',
+      'Security scanning, linting, and tests run in parallel',
+      'Claude\'s PR review highlights key concerns',
+      'Developer focuses on: does this solve the right problem?',
+      'Much faster than traditional code review'
+    ]
+  },
+
+  /* ── Stage 4: CI Gates ── */
+  securitygates: {
+    title: '🔒 Security Gates (3 workflows)',
+    subtitle: 'Stage 4 — Automated vulnerability detection',
+    body: 'Three specialized security scanning workflows run on every PR. Each targets a different attack surface. They can optionally block merges on critical findings.',
+    details: [
+      {text: 'reusable-security-secrets.yml — leaked API keys, tokens, private keys, hardcoded credentials (AWS, Stripe, Slack, Google, GitHub patterns)', gate: true},
+      {text: 'reusable-security-deps.yml — dependency CVE audit via npm/bun/pip/cargo native tools, outputs CRITICAL_HIGH count', gate: true},
+      {text: 'reusable-security-owasp.yml — OWASP Top 10 2021 static analysis (A01–A10: broken access control, injection, SSRF, etc.)', gate: true},
+      {text: 'All 3 use Claude (haiku model) to analyze results and comment on PRs', gate: false},
+      {text: 'Optional fail-on-high / fail-on-critical flags to block merges', gate: false}
+    ]
+  },
+  qualitygates: {
+    title: '✅ Quality Gates (3 workflows)',
+    subtitle: 'Stage 4 — Code quality enforcement',
+    body: 'Three quality-focused workflows detect patterns that hurt maintainability. Each targets a specific class of issues found in real codebases.',
+    details: [
+      {text: 'reusable-quality-code-smell.yml — long functions (50+ lines), deep nesting (4+ levels), magic numbers, empty catches, console.log in production', gate: true},
+      {text: 'reusable-quality-async.yml — unhandled promise rejections, missing .catch(), fire-and-forget patterns, sequential awaits', gate: true},
+      {text: 'reusable-quality-typescript.yml — explicit "any", @ts-ignore, non-null assertions, implicit any types', gate: true},
+      {text: 'Severity thresholds configurable per repo', gate: false},
+      {text: 'Outputs structured counts (TOTAL_ISSUES, HIGH_SEVERITY)', gate: false}
+    ]
+  },
+  a11ygates: {
+    title: '♿ Accessibility Gates (2 workflows)',
+    subtitle: 'Stage 4 — Inclusive by default',
+    body: 'Two accessibility workflows ensure web applications meet standards. Running these in CI means accessibility is verified on every change, not just during periodic audits.',
+    details: [
+      {text: 'reusable-a11y-aria.yml — validates ARIA role values, required attributes, state management against WAI-ARIA APG patterns', gate: true},
+      {text: 'reusable-a11y-wcag.yml — WCAG 2.1 Levels A, AA, AAA: non-text content, keyboard access, link purpose, contrast, heading hierarchy, focus visible', gate: true},
+      {text: 'Outputs: TOTAL_ISSUES, CRITICAL_ISSUES, LEVEL_A, LEVEL_AA counts', gate: false}
+    ]
+  },
+
+  /* ── Stage 5: Release ── */
+  releaseplease: {
+    title: '🏷️ release-please',
+    subtitle: 'Stage 5 — Automated versioning',
+    body: 'When commits land on main, release-please reads conventional commit messages and creates a Release PR with the correct version bump and generated changelog. Merging it publishes a GitHub Release.',
+    details: [
+      'Changelog auto-generated from commit messages',
+      'Supports linked versions across monorepo packages',
+      'Manages extra-files for version references in configs',
+      'Tag format: .*-v(\\d+.\\d+.\\d+) for Docker metadata'
+    ]
+  },
+  containerbuild: {
+    title: '📦 Container Build',
+    subtitle: 'Stage 5 — Build-once pattern',
+    body: 'When a release-please PR is open, a pre-release image is built with :next-{version} tag and pushed to GHCR. This means the image is ready before the release is even approved.',
+    details: [
+      {text: 'Multi-stage Dockerfiles for minimal, secure images', gate: false},
+      {text: 'Non-root users enforced in all containers', gate: true},
+      {text: 'Trivy scans the final image for vulnerabilities', gate: true},
+      {text: 'Images pushed to ghcr.io/forumviriumhelsinki/*', gate: false}
+    ]
+  },
+  promote: {
+    title: '🚀 Image Promotion',
+    subtitle: 'Stage 5 — Seconds, not minutes',
+    body: 'When the Release PR merges and a GitHub Release is published, the pre-built :next image is retagged with the final semver version. No rebuild — just a manifest-only retag operation.',
+    details: [
+      'Tags: :latest, :1.2.3, :1.2, :1, :sha-abc1234',
+      'Falls back to full rebuild if pre-built not found',
+      'Cosign signs the released image',
+      'Release takes seconds instead of minutes'
+    ]
+  },
+
+  /* ── Stage 6: Deploy ── */
+  imageupdater: {
+    title: '🔁 ArgoCD Image Updater',
+    subtitle: 'Stage 6 — Zero-touch deployment',
+    body: 'Image Updater watches GHCR continuously. When a new semver tag appears, it commits the updated tag to the app repo\'s deploy/values.yaml. An auto-merge workflow merges it immediately.',
+    details: [
+      'Commit message: "build: automatic update of {app}"',
+      'Updates image.tag in deploy/values.yaml',
+      'Auto-merge workflow merges these commits immediately',
+      'No human intervention for routine deployments'
+    ]
+  },
+  argocd: {
+    title: '🎯 ArgoCD (GitOps)',
+    subtitle: 'Stage 6 — Declarative deployment',
+    body: 'ArgoCD watches Git and ensures the Kubernetes cluster matches the desired state. If someone changes something manually, ArgoCD reverts it. The infrastructure repo defines all apps via the App of Apps pattern.',
+    details: [
+      'Multi-source: Helm chart from GHCR + values from app repo',
+      'Automatic sync ensures cluster always matches Git',
+      'AppProject RBAC controls namespace and resource access',
+      'Drift detection reverts manual changes'
+    ]
+  },
+  helm: {
+    title: '⎈ Helm Charts',
+    subtitle: 'Stage 6 — Shared templates',
+    body: 'The helm-webapp chart provides a standard template for all web applications. Each app just provides its own values.yaml. Charts are versioned OCI artifacts stored in GHCR.',
+    details: [
+      'helm-webapp is the primary shared chart',
+      'Supports ingress, secrets, probes, autoscaling, and more',
+      'Renovate keeps chart versions current in infrastructure repo',
+      'Charts tested via chart-testing (ct.yaml) in CI'
+    ]
+  },
+
+  /* ── Stage 7: Run ── */
+  gke: {
+    title: '☁️ GKE Autopilot',
+    subtitle: 'Stage 7 — Managed Kubernetes',
+    body: 'Applications run on GKE Autopilot. Google manages nodes, scaling, and cluster health — the team focuses on applications.',
+    details: [
+      'Autopilot = Google manages nodes and scaling automatically',
+      'Envoy Gateway handles ingress (migrating from NGINX)',
+      'Workload Identity connects pods to GCP securely',
+      'Cloud SQL provides managed PostgreSQL'
+    ]
+  },
+  secrets: {
+    title: '🔑 Secrets & Config',
+    subtitle: 'Stage 7 — No secrets in Git',
+    body: 'Secrets live in Google Secret Manager. External Secrets Operator syncs them into Kubernetes Secrets automatically. Kyverno auto-injects imagePullSecrets.',
+    details: [
+      'Google Secret Manager is the single source for secrets',
+      'External Secrets Operator creates K8s Secrets from GSM',
+      'Workload Identity authenticates pods to GCP',
+      'Kyverno auto-injects imagePullSecrets for GHCR'
+    ]
+  },
+  featureflags: {
+    title: '🚩 Feature Flags',
+    subtitle: 'Stage 7 — Safe rollouts',
+    body: 'GoFeatureFlag enables gradual rollouts without redeploying. Features can be toggled or rolled out to a percentage of users.',
+    details: [
+      'Self-hosted GoFeatureFlag (no vendor lock-in)',
+      'OpenFeature SDK — standard API for flag evaluation',
+      'Replaces environment-variable feature toggles',
+      'Enables canary releases and A/B testing'
+    ]
+  },
+
+  /* ── Stage 8: Monitor ── */
+  sentry: {
+    title: '🐛 Sentry',
+    subtitle: 'Stage 8 — Error monitoring',
+    body: 'Sentry captures runtime errors, performance issues, and unhandled exceptions. Each app has its own Sentry project, provisioned via Terraform.',
+    details: [
+      'Real-time alerts with full stack traces',
+      'Performance monitoring with transaction tracing',
+      'Sentry projects managed via Terraform workspace',
+      'MCP integration lets Claude query Sentry directly'
+    ]
+  },
+  kyverno: {
+    title: '📋 Kyverno Policies',
+    subtitle: 'Stage 8 — Runtime security gate',
+    body: 'Kyverno validates and mutates resources inside the cluster. Non-compliant deployments are blocked before they can run.',
+    details: [
+      {text: 'Validates containers don\'t run as root', gate: true},
+      {text: 'Enforces resource limits and security contexts', gate: true},
+      {text: 'Blocks non-compliant deployments', gate: true},
+      {text: 'Auto-injects imagePullSecrets for GHCR', gate: false}
+    ]
+  },
+  autofix: {
+    title: '🔧 Auto-Fix Agent',
+    subtitle: 'Stage 8 — Self-healing CI',
+    body: 'When a GitHub Actions workflow fails, this reusable workflow triggers Claude to analyze the failure logs. For auto-fixable issues (lint, type errors, formatting), it commits a fix. For design issues, it opens a GitHub issue with analysis.',
+    details: [
+      'Triggered by workflow_run failure event',
+      'Auto-fixes: linting, type errors, formatting issues',
+      'Opens issues for: infrastructure, permissions, design problems',
+      'Flood guard: max 2 open auto-fix PRs at a time',
+      'Deduplication: skips if recent fix(auto): commit exists',
+      'Commits use fix(auto): prefix for traceability'
+    ]
+  },
+
+  /* ── AI Agent Layer (bottom cards) ── */
+  claudemention: {
+    title: '💬 @claude on Issues & PRs',
+    subtitle: 'AI Agent Layer — Interactive coding',
+    body: 'Mention @claude on any GitHub issue or PR comment and it starts working autonomously. It reads the context, writes code, commits partial progress, and asks for feedback. Each invocation gets up to 30 turns.',
+    details: [
+      'Works on issues (implement feature) and PRs (address feedback)',
+      'Commits partial progress mid-task for visibility',
+      'If it exhausts turns, posts a "continue" prompt for follow-up',
+      'Has write access to contents, PRs, and issues',
+      'Configurable runner and max_turns per repo'
+    ]
+  },
+  claudereviewdetail: {
+    title: '👁️ Automated PR Review',
+    subtitle: 'AI Agent Layer — Every PR reviewed',
+    body: 'A reusable workflow that automatically reviews every PR when opened or updated. It checks the diff against project rules and leaves review comments. Cancel-in-progress means rapid pushes don\'t stack up reviews.',
+    details: [
+      'Triggers: opened, synchronize, reopened',
+      'Skips release-please PRs and bot authors by default',
+      'Configurable: skip_release_please, skip_bots, review_prompt',
+      'Concurrent with cancel-in-progress for fast feedback'
+    ]
+  },
+  autofixdetail: {
+    title: '🔧 Auto-Fix Workflow',
+    subtitle: 'AI Agent Layer — Self-healing CI',
+    body: 'Analyzes failed workflow runs, determines if the issue is auto-fixable, applies the fix and pushes, or opens a GitHub issue with detailed analysis for issues that need human decision-making.',
+    details: [
+      'Auto-fixable: linting, type errors, formatting, import ordering',
+      'Not auto-fixable: infra issues, permission errors, design decisions',
+      'Flood guard: configurable max open auto-fix PRs (default 2)',
+      'Dedup: skips if recent fix(auto): commit exists',
+      'Commits with fix(auto): prefix for traceability'
+    ]
+  },
+  rulesync: {
+    title: '📐 AI Rules Sync',
+    subtitle: 'AI Agent Layer — One source of truth',
+    body: 'Canonical coding rules live in .rulesync/rules/ in the .github repo. A sync workflow generates tool-specific configs for Claude Code (.claude/rules/), Gemini (.gemini/memories/), GitHub Copilot, and Cursor — then opens a PR if anything changed.',
+    details: [
+      'Source: ForumViriumHelsinki/.github/.rulesync/rules/',
+      'Targets: Claude Code, Gemini CLI, GitHub Copilot, Cursor',
+      'Keeps all AI tools aligned on the same standards',
+      'Auto-creates PR when rules change'
+    ]
+  },
+
+  /* ── git-repo-agent ── */
+  gitrepoagent: {
+    title: '🧬 git-repo-agent',
+    subtitle: 'Async Quality Maintenance — Claude Agent SDK',
+    body: 'A custom CLI tool built on the Claude Agent SDK that maintains repository health autonomously. It runs outside the normal development cycle — onboarding new repos with standards, auditing existing ones, and diagnosing pipeline failures. The key value: repositories stay healthy even when nobody is actively working on them.',
+    details: [
+      'Onboard mode: analyze tech stack → init blueprint → configure standards → generate docs → create PR',
+      'Maintain mode: score health 0–100 across docs, tests, security, quality, CI → auto-fix safe issues',
+      'Diagnose mode: correlate errors from kubectl, ArgoCD, GitHub Actions, Sentry, Chrome DevTools',
+      'Health mode: quick local scoring without API calls',
+      '7 subagents: blueprint (sonnet), configure (haiku), quality (opus), security (opus), docs (haiku), test-runner (haiku), diagnose (sonnet)',
+      'Safety hooks block: force push to protected branches, .env modification, unsafe rm -rf, write kubectl/argocd',
+      'Built with Python + Typer + Rich, installable via uv tool install'
+    ]
+  },
+
+  /* ── Infrastructure Layer ── */
+  terraform: {
+    title: '☁️ Terraform Cloud',
+    subtitle: 'Infrastructure Layer — IaC',
+    body: '5 Terraform Cloud workspaces manage all infrastructure as code. Changes follow plan → review → apply with full audit trail.',
+    details: [
+      'infrastructure-github: repos, teams, secrets, GHCR auth',
+      'infrastructure-gcp: Cloud SQL, Secrets, DNS, Workload Identity',
+      'infrastructure-sentry: Sentry projects per application',
+      'infrastructure-onelogin: SSO configuration',
+      'infrastructure-twingate: Zero Trust network access'
+    ]
+  },
+  renovate: {
+    title: '📦 Renovate Bot',
+    subtitle: 'Infrastructure Layer — Dependency automation',
+    body: 'Self-hosted Renovate runs only in the infrastructure repo (not per-app, saving ~1000 monthly CI minutes). It keeps Helm charts, GitHub Actions, and Terraform providers up to date.',
+    details: [
+      'Self-hosted in infrastructure repo (centralized)',
+      'Updates Helm chart versions in ArgoCD manifests',
+      'Pins GitHub Actions to SHA for security',
+      'Updates Terraform provider versions'
+    ]
+  },
+  reusableworkflows: {
+    title: '⚙️ 21 Reusable Workflows',
+    subtitle: 'Infrastructure Layer — Centralized CI',
+    body: 'The .github org repo provides 21 reusable workflow templates. App repos call these with minimal config. One update to a template improves every repository at once.',
+    details: [
+      'Release: release-please, container-build, container-release, image-updater auto-merge',
+      'Claude: @-mention handler, PR review, auto-fix, rules sync',
+      'Security: secrets scan, dependency audit, OWASP analysis',
+      'Quality: code smells, async patterns, TypeScript strictness',
+      'Accessibility: ARIA validation, WCAG compliance',
+      'Maintenance: conflict resolution, conventional commit enforcement'
+    ]
+  }
+};
+
+// ── Tooltip logic ──
+const overlay = document.getElementById('tooltipOverlay');
+const closeBtn = document.getElementById('tooltipClose');
+
+function showTooltip(key) {
+  const data = tooltips[key];
+  if (!data) return;
+
+  document.getElementById('ttTitle').textContent = data.title;
+  document.getElementById('ttSubtitle').textContent = data.subtitle;
+  document.getElementById('ttBody').textContent = data.body;
+
+  const detailList = document.getElementById('ttDetails');
+  detailList.innerHTML = '';
+  (data.details || []).forEach(d => {
+    const li = document.createElement('li');
+    if (typeof d === 'string') {
+      li.textContent = d;
+    } else {
+      li.textContent = d.text;
+      if (d.gate) li.classList.add('gate');
+    }
+    detailList.appendChild(li);
+  });
+
+  overlay.classList.add('active');
+}
+
+document.querySelectorAll('[data-tooltip]').forEach(el => {
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showTooltip(el.dataset.tooltip);
+  });
+});
+
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) overlay.classList.remove('active');
+});
+closeBtn.addEventListener('click', () => overlay.classList.remove('active'));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') overlay.classList.remove('active');
+});
+</script>
+
+</body>
+</html>
