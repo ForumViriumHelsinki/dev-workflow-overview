@@ -1,0 +1,196 @@
+{
+  "format_version": "3.3.0",
+  "created_at": "2026-04-16T00:00:00Z",
+  "updated_at": "2026-04-16T00:00:00Z",
+  "created_by": {
+    "blueprint_plugin": "3.25.2"
+  },
+  "project": {
+    "name": "dev-workflow-overview",
+    "detected_stack": [
+      "typescript",
+      "vite",
+      "lit",
+      "bun"
+    ]
+  },
+  "structure": {
+    "has_prds": true,
+    "has_adrs": true,
+    "has_prps": true,
+    "has_work_orders": true,
+    "has_ai_docs": false,
+    "has_modular_rules": true,
+    "has_feature_tracker": true,
+    "has_document_detection": true,
+    "claude_md_mode": "both"
+  },
+  "feature_tracker": {
+    "file": "feature-tracker.json",
+    "source_document": "docs/prds/project-overview.md",
+    "sync_targets": ["TODO.md"]
+  },
+  "generated": {
+    "rules": {},
+    "commands": {}
+  },
+  "custom_overrides": {
+    "skills": [],
+    "commands": []
+  },
+  "task_registry": {
+    "derive-prd": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "on-demand",
+      "stats": {},
+      "context": {}
+    },
+    "derive-plans": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": "2026-04-16T00:00:00Z",
+      "last_result": "success",
+      "schedule": "weekly",
+      "stats": {
+        "runs_total": 1,
+        "items_processed": 2,
+        "items_created": 6
+      },
+      "context": {
+        "commits_analyzed_up_to": "ddbf86f98e1c3b71209a1f7700e3a06a27abc8fe",
+        "commits_analyzed_count": 2,
+        "git_quality_score": 10
+      }
+    },
+    "derive-rules": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": "2026-04-16T00:00:00Z",
+      "last_result": "skipped",
+      "schedule": "weekly",
+      "stats": {
+        "runs_total": 1,
+        "items_processed": 2,
+        "items_created": 0
+      },
+      "context": {
+        "commits_analyzed_up_to": "ddbf86f98e1c3b71209a1f7700e3a06a27abc8fe",
+        "commits_analyzed_count": 2,
+        "skip_reason": "insufficient-history",
+        "min_commits_threshold": 20
+      }
+    },
+    "generate-rules": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "on-change",
+      "stats": {},
+      "context": {}
+    },
+    "adr-validate": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "weekly",
+      "stats": {},
+      "context": {}
+    },
+    "feature-tracker-sync": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "daily",
+      "stats": {},
+      "context": {}
+    },
+    "sync-ids": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "on-change",
+      "stats": {},
+      "context": {}
+    },
+    "claude-md": {
+      "enabled": true,
+      "auto_run": false,
+      "last_completed_at": "2026-04-16T00:00:00Z",
+      "last_result": "success",
+      "schedule": "on-change",
+      "stats": {
+        "runs_total": 1
+      },
+      "context": {
+        "mode": "lean-with-imports",
+        "imports": [
+          "docs/prds/project-overview.md",
+          "docs/adrs/README.md",
+          ".claude/rules/development.md",
+          ".claude/rules/testing.md",
+          ".claude/rules/document-management.md"
+        ]
+      }
+    },
+    "curate-docs": {
+      "enabled": false,
+      "auto_run": false,
+      "last_completed_at": null,
+      "last_result": null,
+      "schedule": "on-demand",
+      "stats": {},
+      "context": {}
+    }
+  },
+  "id_registry": {
+    "last_prd": 1,
+    "last_adr": 5,
+    "last_prp": 0,
+    "documents": {
+      "PRD-001": {
+        "path": "docs/prds/project-overview.md",
+        "title": "dev-workflow-overview \u2014 Product Requirements Document",
+        "github_issues": [],
+        "created": "2026-04-16"
+      },
+      "ADR-0001": {
+        "path": "docs/adrs/0001-lit-typescript-componentization.md",
+        "title": "Use Lit + TypeScript for componentization",
+        "status": "Accepted",
+        "created": "2026-04-08"
+      },
+      "ADR-0002": {
+        "path": "docs/adrs/0002-vite-bun-build-pipeline.md",
+        "title": "Vite + Bun for the build pipeline",
+        "status": "Accepted",
+        "created": "2026-04-08"
+      },
+      "ADR-0003": {
+        "path": "docs/adrs/0003-github-pages-hosting.md",
+        "title": "Host the visualization on GitHub Pages",
+        "status": "Accepted",
+        "created": "2026-04-08"
+      },
+      "ADR-0004": {
+        "path": "docs/adrs/0004-indicators-array-data-model.md",
+        "title": "Use an indicators array + phase discriminator on stage cards",
+        "status": "Accepted",
+        "created": "2026-04-16"
+      },
+      "ADR-0005": {
+        "path": "docs/adrs/0005-svg-overlay-arrow-tracking.md",
+        "title": "SVG overlay with ResizeObserver + rAF for the Monitor \u2192 Develop feedback arrow",
+        "status": "Accepted",
+        "created": "2026-04-16"
+      }
+    },
+    "github_issues": {}
+  }
+}
