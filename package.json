@@ -4,12 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "prebuild": "bun run openapi:types",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "openapi:types": "openapi-typescript aggregator/api/openapi.yaml -o src/services/types.ts",
+    "openapi:check": "openapi-typescript aggregator/api/openapi.yaml -o /tmp/types.ts && diff -u src/services/types.ts /tmp/types.ts",
+    "test": "bun scripts/run-tests.ts",
+    "test:watch": "bun scripts/run-tests.ts watch",
+    "byte-identity": "bun scripts/byte-identity.ts"
   },
   "devDependencies": {
+    "@open-wc/testing": "^4.0.0",
     "@types/bun": "latest",
-    "vite": "^8.0.7"
+    "@vitest/browser": "^2.1.9",
+    "jsdom": "^29.0.2",
+    "openapi-typescript": "^7.5.0",
+    "playwright": "^1.49.1",
+    "vite": "^8.0.7",
+    "vitest": "^2.1.9"
   },
   "peerDependencies": {
     "typescript": "^5"

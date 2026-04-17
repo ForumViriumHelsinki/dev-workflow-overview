@@ -1,4 +1,4 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
 import { theme } from "../styles/theme.js";
 import {
@@ -7,13 +7,32 @@ import {
   gateChips,
   agentCards,
   infraCards,
+  stageNumberByKind,
 } from "../data/stages.js";
+import type {
+  AppStatus,
+  AppSummary,
+  Stage as LiveStage,
+  StageKind,
+  StatusCode,
+} from "../services/schemas.js";
+import {
+  StatusClient,
+  type ConnectionState,
+} from "../services/status-client.js";
 import "./workflow-stage.js";
 import "./workflow-card.js";
 import "./workflow-tooltip.js";
 import "./pipeline-arrow.js";
 import "./phase-band.js";
 import "./feedback-arrow.js";
+import "./status-banner.js";
+import "./app-switcher.js";
+
+/** Map of stage number (1..14) → current live-mode status. */
+type LiveStatusMap = Partial<Record<number, StatusCode>>;
+/** Map of stage number → full live-mode stage payload for tooltip lookup. */
+type LiveStageMap = Partial<Record<number, LiveStage>>;
 
 @customElement("workflow-app")
 export class WorkflowApp extends LitElement {
@@ -342,9 +361,170 @@ export class WorkflowApp extends LitElement {
   ];
 
   @state() private _activeTooltip = "";
+  @state() private _liveMode = false;
+  @state() private _liveApp = "";
+  @state() private _liveStatus: LiveStatusMap = {};
+  @state() private _liveStages: LiveStageMap = {};
+  @state() private _liveSnapshot?: AppStatus;
+  @state() private _liveConnection: ConnectionState = "connecting";
+  @state() private _liveApps: AppSummary[] = [];
+  @state() private _refreshCooldown = false;
+
+  private _client?: StatusClient;
+  private _unsubscribe?: () => void;
 
   @query(".pipeline") private _pipelineEl!: HTMLElement;
   @query(".pipeline-rail") private _railEl!: HTMLElement;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._initLiveMode();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._unsubscribe?.();
+  }
+
+  private _initLiveMode() {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const app = params.get("app");
+    const repo = params.get("repo");
+    if (!app && !repo) return; // static mode — no aggregator calls (FR8.1).
+    this._liveMode = true;
+    this._client = new StatusClient();
+
+    if (app) {
+      this._liveApp = app;
+      void this._startSubscription(app);
+      void this._fetchAppList();
+      return;
+    }
+    if (repo) void this._resolveRepo(repo);
+  }
+
+  private async _fetchAppList() {
+    try {
+      const apps = await this._client!.list();
+      this._liveApps = apps;
+    } catch (err) {
+      console.warn("status-aggregator: failed to list apps", err);
+    }
+  }
+
+  private async _resolveRepo(repo: string) {
+    try {
+      const matches = await this._client!.list({ repo });
+      if (matches.length === 1) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("repo");
+        url.searchParams.set("app", matches[0].name);
+        window.history.replaceState({}, "", url.toString());
+        this._liveApp = matches[0].name;
+        await this._startSubscription(matches[0].name);
+        void this._fetchAppList();
+      } else {
+        this._liveApp = "";
+        this._liveApps = matches;
+      }
+    } catch (err) {
+      console.warn("status-aggregator: repo lookup failed", err);
+      this._liveConnection = "closed";
+    }
+  }
+
+  private async _startSubscription(app: string) {
+    this._unsubscribe?.();
+    this._unsubscribe = this._client!.subscribe(app, {
+      onSnapshot: (snap) => this._applySnapshot(snap),
+      onStageUpdate: (update) => {
+        const n = stageNumberByKind[update.stage.kind as StageKind];
+        if (!n) return;
+        this._liveStatus = { ...this._liveStatus, [n]: update.stage.status };
+        this._liveStages = { ...this._liveStages, [n]: update.stage };
+        if (this._liveSnapshot) {
+          this._liveSnapshot = StatusClient.applyStageUpdate(
+            this._liveSnapshot,
+            update,
+          );
+        }
+      },
+      onOverallUpdate: (overall) => {
+        if (this._liveSnapshot) {
+          this._liveSnapshot = { ...this._liveSnapshot, overall };
+        }
+      },
+      onConnectionChange: (state) => {
+        this._liveConnection = state;
+      },
+      onError: (err) => {
+        console.warn("status-aggregator: stream error", err);
+      },
+    });
+  }
+
+  private _applySnapshot(snap: AppStatus) {
+    this._liveSnapshot = snap;
+    const statusMap: LiveStatusMap = {};
+    const stageMap: LiveStageMap = {};
+    for (const s of snap.stages) {
+      const n = stageNumberByKind[s.kind as StageKind];
+      if (!n) continue;
+      statusMap[n] = s.status;
+      stageMap[n] = s;
+    }
+    this._liveStatus = statusMap;
+    this._liveStages = stageMap;
+  }
+
+  private _onRefreshRequest = async () => {
+    if (!this._client || !this._liveApp || this._refreshCooldown) return;
+    this._refreshCooldown = true;
+    try {
+      await this._client.refresh(this._liveApp);
+    } finally {
+      setTimeout(() => (this._refreshCooldown = false), 30_000);
+    }
+  };
+
+  private _onExitLive = () => {
+    this._unsubscribe?.();
+    this._unsubscribe = undefined;
+    this._liveMode = false;
+    this._liveApp = "";
+    this._liveStatus = {};
+    this._liveStages = {};
+    this._liveSnapshot = undefined;
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("app");
+      url.searchParams.delete("repo");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  private _onAppSelect = (e: CustomEvent<{ name: string }>) => {
+    const app = e.detail.name;
+    if (!app || app === this._liveApp) return;
+    this._liveApp = app;
+    this._liveStatus = {};
+    this._liveStages = {};
+    this._liveSnapshot = undefined;
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("app", app);
+      window.history.replaceState({}, "", url.toString());
+    }
+    void this._startSubscription(app);
+  };
+
+  private _liveStageForActiveTooltip(): LiveStage | undefined {
+    if (!this._liveMode) return undefined;
+    const card = findCardByTooltip(this._activeTooltip);
+    if (!card) return undefined;
+    return this._liveStages[card.stageNumber];
+  }
 
   private _onCardClick(e: CustomEvent) {
     this._activeTooltip = e.detail.tooltip;
@@ -390,6 +570,23 @@ export class WorkflowApp extends LitElement {
 
   render() {
     return html`
+      ${this._liveMode
+        ? html`<status-banner
+              .appName=${this._liveApp}
+              .overall=${this._liveSnapshot?.overall}
+              .connection=${this._liveConnection}
+              .refreshDisabled=${this._refreshCooldown}
+              @refresh-request=${this._onRefreshRequest}
+              @exit-live-view=${this._onExitLive}
+            ></status-banner>
+            ${this._liveApps.length > 0
+              ? html`<app-switcher
+                  .apps=${this._liveApps}
+                  .selected=${this._liveApp}
+                  @app-select=${this._onAppSelect}
+                ></app-switcher>`
+              : nothing}`
+        : nothing}
       <header>
         <h1>Forum Virium Helsinki — Project Lifecycle</h1>
         <p>From inception to sunset — the whole life of a service</p>
@@ -464,6 +661,7 @@ export class WorkflowApp extends LitElement {
                         .stageTitle=${stage.title}
                         .color=${stage.color}
                         .cards=${stage.cards}
+                        .status=${this._liveStatus[stage.number]}
                       ></workflow-stage>
                     `,
                   )}
@@ -582,6 +780,8 @@ export class WorkflowApp extends LitElement {
 
       <workflow-tooltip
         .activeTooltip=${this._activeTooltip}
+        .liveStage=${this._liveStageForActiveTooltip()}
+        .liveEmpty=${this._liveMode && this._activeTooltip !== "" && !this._liveStageForActiveTooltip()}
         @tooltip-close=${this._onTooltipClose}
       ></workflow-tooltip>
     `;
@@ -592,4 +792,18 @@ declare global {
   interface HTMLElementTagNameMap {
     "workflow-app": WorkflowApp;
   }
+}
+
+interface TooltipCardIndex {
+  tooltip: string;
+  stageNumber: number;
+}
+
+const cardIndex: TooltipCardIndex[] = stages.flatMap((s) =>
+  s.cards.map((c) => ({ tooltip: c.tooltip, stageNumber: s.number })),
+);
+
+function findCardByTooltip(tooltip: string): TooltipCardIndex | undefined {
+  if (!tooltip) return undefined;
+  return cardIndex.find((c) => c.tooltip === tooltip);
 }

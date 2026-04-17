@@ -3,6 +3,7 @@ import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.js";
 import { tooltips } from "../data/tooltips.js";
 import type { TooltipDetail } from "../data/tooltips.js";
+import type { Stage } from "../services/schemas.js";
 
 @customElement("workflow-tooltip")
 export class WorkflowTooltip extends LitElement {
@@ -148,6 +149,61 @@ export class WorkflowTooltip extends LitElement {
         font-weight: 600;
       }
 
+      /* Live values section */
+      .live {
+        margin-bottom: 0.9rem;
+        padding: 0.75rem 0.9rem;
+        background: var(--surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+      }
+      .live-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.35rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+      .live-summary {
+        font-size: 0.88rem;
+        color: var(--text);
+        margin-bottom: 0.3rem;
+      }
+      .live-meta {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .live-links {
+        margin-top: 0.45rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .live-links a {
+        font-size: 0.75rem;
+        color: var(--accent-blue);
+        text-decoration: none;
+      }
+      .live-links a:hover {
+        text-decoration: underline;
+      }
+      .live-empty {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        font-style: italic;
+      }
+      .live-state-ok   { color: var(--status-ok); }
+      .live-state-warn { color: var(--status-warn); }
+      .live-state-fail { color: var(--status-fail); }
+      .live-state-unknown { color: var(--status-unknown); }
+
       .close-btn {
         position: absolute;
         top: 1rem;
@@ -191,6 +247,14 @@ export class WorkflowTooltip extends LitElement {
   ];
 
   @property() activeTooltip = "";
+  /**
+   * Optional live-stage payload surfaced when the app is in live mode.
+   * Rendered above the static educational body per PRD-002 FR3.1.
+   * When undefined no live section is shown.
+   */
+  @property({ attribute: false }) liveStage?: Stage;
+  /** True when live mode is active but the aggregator returned no data. */
+  @property({ type: Boolean }) liveEmpty = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -225,6 +289,53 @@ export class WorkflowTooltip extends LitElement {
     return html`<li class=${d.gate ? "gate" : ""}>${d.text}</li>`;
   }
 
+  private _renderLive() {
+    if (this.liveEmpty) {
+      return html`<div class="live">
+        <div class="live-header">Current state</div>
+        <div class="live-empty">No live data available.</div>
+      </div>`;
+    }
+    const stage = this.liveStage;
+    if (!stage) return nothing;
+
+    const stateClass = `live-state-${stage.status === "n/a" ? "unknown" : stage.status}`;
+    const rel = formatRelative(stage.fetchedAt);
+    const stale =
+      stage.staleness === "fetch-failed"
+        ? "Fetch failed"
+        : stage.staleness === "stale"
+          ? "Stale"
+          : stage.staleness === "cached"
+            ? "Cached"
+            : "Fresh";
+    return html`
+      <div class="live">
+        <div class="live-header">
+          <span>Current state</span>
+          <span class=${stateClass}>${stage.status.toUpperCase()}</span>
+        </div>
+        <div class="live-summary">${stage.summary || "—"}</div>
+        <div class="live-meta">
+          <span>Fetched ${rel}</span>
+          <span>· ${stale}</span>
+          ${stage.failureReason
+            ? html`<span>· ${stage.failureReason}</span>`
+            : null}
+        </div>
+        ${stage.links && stage.links.length
+          ? html`<div class="live-links">
+              ${stage.links.map(
+                (l) => html`<a href=${l.href} target="_blank" rel="noopener"
+                  >${l.label} &rarr;</a
+                >`,
+              )}
+            </div>`
+          : null}
+      </div>
+    `;
+  }
+
   render() {
     const data = tooltips[this.activeTooltip];
     if (!data) return nothing;
@@ -235,6 +346,7 @@ export class WorkflowTooltip extends LitElement {
           <button class="close-btn" @click=${this._close}>&times;</button>
           <h3>${data.title}</h3>
           <div class="subtitle">${data.subtitle}</div>
+          ${this._renderLive()}
           <p class="body">${data.body}</p>
           <ul class="details">
             ${data.details.map((d) => this._renderDetail(d))}
@@ -300,4 +412,15 @@ declare global {
   interface HTMLElementTagNameMap {
     "workflow-tooltip": WorkflowTooltip;
   }
+}
+
+/** Human-friendly "Xs ago" / "Xm ago" relative-time string. */
+function formatRelative(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "just now";
+  const deltaSec = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (deltaSec < 60) return `${deltaSec}s ago`;
+  if (deltaSec < 3600) return `${Math.round(deltaSec / 60)}m ago`;
+  if (deltaSec < 86_400) return `${Math.round(deltaSec / 3600)}h ago`;
+  return `${Math.round(deltaSec / 86_400)}d ago`;
 }

@@ -27,6 +27,15 @@ export const theme = css`
     --badge-manual: var(--accent-orange);
     --badge-automatable: var(--accent-purple);
     --badge-doc-gap: var(--accent-yellow);
+
+    /* Status dot tokens (live-mode, per PRD-002 FR2.1) */
+    --status-ok: #3fb950;
+    --status-warn: #e3b341;
+    --status-fail: #f85149;
+    --status-unknown: #6e7681;
+    --status-dot-size: 10px;
+    --status-dot-ring: 2px;
+
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 16px;

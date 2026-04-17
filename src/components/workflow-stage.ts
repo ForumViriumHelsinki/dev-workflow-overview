@@ -1,7 +1,8 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.js";
 import type { CardData } from "../data/stages.js";
+import type { StatusCode } from "../services/schemas.js";
 import "./workflow-card.js";
 
 @customElement("workflow-stage")
@@ -21,6 +22,11 @@ export class WorkflowStage extends LitElement {
         margin-bottom: 0.7rem;
       }
 
+      .number-wrap {
+        position: relative;
+        display: inline-block;
+      }
+
       .number {
         display: inline-flex;
         align-items: center;
@@ -34,6 +40,22 @@ export class WorkflowStage extends LitElement {
         color: var(--bg);
         box-shadow: 0 2px 8px color-mix(in srgb, var(--stage-color), transparent 60%);
       }
+
+      .status-dot {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: var(--status-dot-size);
+        height: var(--status-dot-size);
+        border-radius: 50%;
+        border: var(--status-dot-ring) solid var(--bg);
+        background: var(--dot-color, var(--status-unknown));
+        box-shadow: 0 0 4px color-mix(in srgb, var(--dot-color, var(--status-unknown)), transparent 50%);
+      }
+      .status-dot[data-state="ok"]      { --dot-color: var(--status-ok); }
+      .status-dot[data-state="warn"]    { --dot-color: var(--status-warn); }
+      .status-dot[data-state="fail"]    { --dot-color: var(--status-fail); }
+      .status-dot[data-state="unknown"] { --dot-color: var(--status-unknown); }
 
       .title {
         font-size: 0.88rem;
@@ -54,6 +76,12 @@ export class WorkflowStage extends LitElement {
   @property() stageTitle = "";
   @property() color = "";
   @property({ type: Array }) cards: CardData[] = [];
+  /**
+   * Optional live-mode status. Undefined means "static mode" — no dot is
+   * rendered so the static bundle stays byte-identical to its pre-live
+   * baseline (PRD-002 FR8.1).
+   */
+  @property({ attribute: false }) status?: StatusCode;
 
   private _handleCardClick(tooltip: string) {
     this.dispatchEvent(
@@ -65,14 +93,35 @@ export class WorkflowStage extends LitElement {
     );
   }
 
+  private _renderDot() {
+    if (!this.status || this.status === "n/a") return nothing;
+    const labels: Record<StatusCode, string> = {
+      ok: "Healthy",
+      warn: "Degraded",
+      fail: "Failing",
+      unknown: "Status unknown",
+      "n/a": "",
+    };
+    return html`<span
+      class="status-dot"
+      data-state=${this.status}
+      role="img"
+      aria-label=${labels[this.status]}
+      title=${labels[this.status]}
+    ></span>`;
+  }
+
   render() {
     return html`
       <div class="header">
-        <div
-          class="number"
-          style="background:${this.color}; --stage-color:${this.color}"
-        >
-          ${this.number}
+        <div class="number-wrap">
+          <div
+            class="number"
+            style="background:${this.color}; --stage-color:${this.color}"
+          >
+            ${this.number}
+          </div>
+          ${this._renderDot()}
         </div>
         <div class="title">${this.stageTitle}</div>
       </div>

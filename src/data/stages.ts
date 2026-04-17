@@ -7,6 +7,56 @@ export type PhaseId =
   | "evolve"
   | "sunset";
 
+/**
+ * Stable identifier for each of the 14 lifecycle stages. Values match
+ * the aggregator's OpenAPI `StageKind` enum so live-mode updates key
+ * onto static rows without a separate mapping table.
+ */
+export type StageKind =
+  | "inception"
+  | "provision"
+  | "develop"
+  | "commit-push"
+  | "ai-review"
+  | "ci-gates"
+  | "release"
+  | "deploy"
+  | "run"
+  | "operate"
+  | "monitor"
+  | "evolve"
+  | "deprecate"
+  | "decommission";
+
+/**
+ * Maps an aggregator StageKind back to the static stage number (1..14)
+ * used by workflow-stage components and the UI layout.
+ */
+export const stageNumberByKind: Record<StageKind, number> = {
+  inception: 1,
+  provision: 2,
+  develop: 3,
+  "commit-push": 4,
+  "ai-review": 5,
+  "ci-gates": 6,
+  release: 7,
+  deploy: 8,
+  run: 9,
+  operate: 10,
+  monitor: 11,
+  evolve: 12,
+  deprecate: 13,
+  decommission: 14,
+};
+
+/**
+ * Inverse of stageNumberByKind — useful when reconciling a static stage
+ * row with a live-mode update keyed by kind.
+ */
+export const stageKindByNumber: Record<number, StageKind> = Object.fromEntries(
+  Object.entries(stageNumberByKind).map(([k, n]) => [n, k as StageKind]),
+) as Record<number, StageKind>;
+
 export interface CardData {
   icon: string;
   name: string;
