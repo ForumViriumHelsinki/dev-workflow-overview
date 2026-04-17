@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: status-aggregator
+  labels:
+    app.kubernetes.io/name: status-aggregator
+    app.kubernetes.io/part-of: dev-workflow-overview

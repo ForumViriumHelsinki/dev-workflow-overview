@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-aggregator
+  namespace: status-aggregator
+  labels:
+    app.kubernetes.io/name: status-aggregator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # SSE sticks one connection per pod; no need for rolling
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: status-aggregator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: status-aggregator
+    spec:
+      serviceAccountName: status-aggregator
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aggregator
+          image: localhost:5001/status-aggregator:dev
+          # Always in dev so a rollout restart picks up the latest push
+          # from localhost:5001 even though the tag is stable.
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: LOG_LEVEL
+              value: debug
+            - name: ENABLE_FAKE
+              value: "true"
+            - name: ENABLE_ARGOCD
+              value: "false"
+            - name: ENABLE_KUBERNETES
+              value: "false"
+            - name: ENABLE_GITHUB
+              value: "false"
+            - name: ENABLE_SENTRY
+              value: "false"
+            - name: ARGOCD_SERVER
+              value: argocd-server.argocd.svc:443
+            - name: APPPROJECTS_ALLOWED
+              value: default,platform-automation
+          # Secret env refs for GITHUB_* / SENTRY_* are intentionally
+          # omitted in local dev — the corresponding ENABLE_* flags are
+          # false, so the adapters do not require credentials. To test
+          # against real tokens, populate the Secret and add envFrom
+          # here (or use an overlay).
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

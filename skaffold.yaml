@@ -1,0 +1,38 @@
+apiVersion: skaffold/v4beta12
+kind: Config
+metadata:
+  name: dev-workflow-overview
+build:
+  local:
+    push: true
+    useDockerCLI: true
+  artifacts:
+    - image: localhost:5001/status-aggregator
+      context: aggregator
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          VERSION: "{{.IMAGE_TAG}}"
+          COMMIT: "{{.IMAGE_TAG}}"
+          BUILD_DATE: "{{.IMAGE_TAG}}"
+  tagPolicy:
+    sha256: {}
+
+manifests:
+  rawYaml:
+    - k8s/namespace.yaml
+    - k8s/rbac.yaml
+    - k8s/secret.yaml
+    - k8s/deployment.yaml
+    - k8s/service.yaml
+    - k8s/httproute.yaml
+
+deploy:
+  kubectl:
+    defaultNamespace: status-aggregator
+
+profiles:
+  - name: kind-fvh-dev
+    activation:
+      - kubeContext: kind-fvh-dev
+    patches: []
