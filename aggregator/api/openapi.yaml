@@ -1,0 +1,1119 @@
+openapi: 3.1.0
+info:
+  title: FVH dev-workflow-overview Status Aggregator
+  version: 0.1.0
+  summary: Live deployment-status API for the FVH lifecycle dashboard.
+  description: |
+    Aggregates per-application lifecycle status from ArgoCD, the Kubernetes API, the
+    GitHub API, and Sentry, and serves it to the browser dashboard as a JSON snapshot
+    plus a server-sent events stream.
+
+    The canonical deployment identifier is the **ArgoCD Application name** (ADR-0007).
+    Pre-deploy projects (no Application yet) may be looked up by GitHub repository
+    and are returned in a reduced, Build-phase-only shape.
+
+    Auth model (v1): the service trusts the network perimeter (Twingate, ADR-0009)
+    and does not perform per-user authorization.
+
+    See PRD-002 (`docs/prds/live-deployment-status.md`) and PRP-002
+    (`docs/prps/live-deployment-status.md`) for full context.
+  contact:
+    name: Forum Virium Helsinki
+    url: https://github.com/ForumViriumHelsinki
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://dev-overview.fvh.internal
+    description: Production (Twingate-gated)
+
+tags:
+  - name: apps
+    description: Application discovery and status snapshots.
+  - name: events
+    description: Server-sent status streams.
+  - name: admin
+    description: Manual cache control.
+  - name: ops
+    description: Operational endpoints (health, metrics).
+
+paths:
+  /api/v1/apps:
+    get:
+      operationId: listApps
+      tags: [apps]
+      summary: List Applications visible to the aggregator
+      description: |
+        Returns every ArgoCD Application the aggregator's ServiceAccount is permitted
+        to read, plus each Application's current overall status. Intended for the
+        `<app-switcher>` combobox.
+
+        Supports filtering by source repository to implement the `?repo=` fallback:
+        when exactly one Application matches, the caller redirects the browser to
+        `?app=<name>`.
+      parameters:
+        - $ref: '#/components/parameters/RepoFilter'
+        - $ref: '#/components/parameters/ProjectFilter'
+      responses:
+        '200':
+          description: Ordered list of Applications.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/apps/{name}/status:
+    get:
+      operationId: getAppStatus
+      tags: [apps]
+      summary: Get a full status snapshot for one Application
+      description: |
+        Returns all 14 lifecycle stages with their current status, summary text,
+        typed details, deep links to upstream tools, and per-field fetched-at /
+        staleness metadata.
+      parameters:
+        - $ref: '#/components/parameters/AppName'
+      responses:
+        '200':
+          description: Full snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/apps/{name}/events:
+    get:
+      operationId: streamAppEvents
+      tags: [events]
+      summary: Subscribe to an Application's live status stream (SSE)
+      description: |
+        Opens a long-lived `text/event-stream` connection. On connect the server
+        sends an `event: snapshot` carrying a full `AppStatus`. Thereafter the
+        server emits `event: stage-update` whenever a stage's status changes, and
+        `event: ping` every 20 seconds for keep-alive.
+
+        Clients should set the `Accept: text/event-stream` header and use the
+        standard `EventSource` API or equivalent. The `Last-Event-ID` header is
+        honoured on reconnect to trigger a fresh snapshot.
+
+        OpenAPI does not model SSE natively; the payloads each event carries are
+        specified by the schemas linked below and by the `x-sse-events` extension.
+      parameters:
+        - $ref: '#/components/parameters/AppName'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Standard SSE resume header. Server responds with a full snapshot on reconnect regardless of value.
+      responses:
+        '200':
+          description: SSE stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: "Stream of `event: ...\\ndata: ...\\n\\n` frames."
+                example: |
+                  event: snapshot
+                  id: 1729089612-0
+                  data: {"app":"fvh-tfds", ...}
+
+                  event: stage-update
+                  id: 1729089625-3
+                  data: {"app":"fvh-tfds","stage":{"id":8, ...}}
+
+                  event: ping
+                  data: {}
+      x-sse-events:
+        snapshot:
+          description: Full state of the Application, sent immediately on (re)connect.
+          schema: { $ref: '#/components/schemas/SnapshotEvent' }
+        stage-update:
+          description: A single stage changed; replace only that stage client-side.
+          schema: { $ref: '#/components/schemas/StageUpdateEvent' }
+        overall-update:
+          description: Overall badge recomputed (derived from stages but sent explicitly to keep clients simple).
+          schema: { $ref: '#/components/schemas/OverallUpdateEvent' }
+        ping:
+          description: Keep-alive; carries no payload data clients need to process.
+          schema: { $ref: '#/components/schemas/PingEvent' }
+        error:
+          description: A non-fatal server-side problem; clients may log and continue. Fatal errors close the stream with a 5xx on reconnect.
+          schema: { $ref: '#/components/schemas/ErrorEvent' }
+
+  /api/v1/apps/{name}/refresh:
+    post:
+      operationId: refreshApp
+      tags: [admin]
+      summary: Force cache bypass on the next read for one Application
+      description: |
+        Marks all per-source cache entries for this Application as expired, forcing
+        the next `GET /status` or next cache read inside an active SSE connection
+        to hit upstream sources. Rate-limited to 1 request per 30 seconds per
+        Application to protect upstream rate limits.
+      parameters:
+        - $ref: '#/components/parameters/AppName'
+      responses:
+        '202':
+          description: Refresh accepted; results propagate via SSE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshAccepted'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /healthz:
+    get:
+      operationId: health
+      tags: [ops]
+      summary: Liveness/readiness probe
+      description: |
+        Returns `200` when the aggregator is serving normally. Returns `503` when
+        at least one upstream source has been failing continuously for more than
+        five minutes (per PRD-002 FR7.3).
+      responses:
+        '200':
+          description: Healthy.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: Unhealthy — at least one upstream is down.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /metrics:
+    get:
+      operationId: metrics
+      tags: [ops]
+      summary: Prometheus metrics
+      description: |
+        Exposes Prometheus-formatted metrics. Not intended for browser use; scraped
+        by the Prometheus stack via `ServiceMonitor` in `deploy/service-monitor.yaml`.
+      responses:
+        '200':
+          description: Metrics in Prometheus text exposition format.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+
+  ##########################################################################
+  # Parameters
+  ##########################################################################
+  parameters:
+    AppName:
+      name: name
+      in: path
+      required: true
+      description: ArgoCD Application name.
+      schema:
+        $ref: '#/components/schemas/AppName'
+
+    RepoFilter:
+      name: repo
+      in: query
+      required: false
+      description: |
+        Filter to Applications whose source repository matches `owner/repo`.
+        Used by the `?repo=` fallback in the browser.
+      schema:
+        type: string
+        pattern: '^[^/ ]+/[^/ ]+$'
+      example: ForumViriumHelsinki/tfds
+
+    ProjectFilter:
+      name: project
+      in: query
+      required: false
+      description: Filter to Applications in the given ArgoCD AppProject.
+      schema:
+        type: string
+      example: platform-automation
+
+  ##########################################################################
+  # Reusable responses
+  ##########################################################################
+  responses:
+    NotFound:
+      description: Application not found or not visible to this aggregator.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+          description: Seconds the caller should wait before retrying.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  ##########################################################################
+  # Primitive / enum schemas
+  ##########################################################################
+  schemas:
+
+    AppName:
+      type: string
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+      minLength: 1
+      maxLength: 63
+      example: fvh-tfds
+      description: |
+        DNS-label-safe ArgoCD Application name. Must match the regex used by
+        Kubernetes for resource names.
+
+    StatusCode:
+      type: string
+      enum: [ok, warn, fail, unknown, n/a]
+      description: |
+        Per-stage health code.
+
+        * `ok` — stage is healthy by its own rule.
+        * `warn` — stage is degraded but not broken (e.g., stale release).
+        * `fail` — stage is broken (e.g., ArgoCD Degraded, Run 0/N).
+        * `unknown` — data could not be fetched or interpreted; rendered grey.
+        * `n/a` — stage does not apply to this Application right now (e.g., Deprecate
+          with no sunset date).
+
+    Staleness:
+      type: string
+      enum: [fresh, cached, stale, fetch-failed]
+      description: |
+        Freshness label attached to every stage payload.
+
+        * `fresh` — value produced by a direct upstream read within the TTL.
+        * `cached` — value served from cache; still within TTL.
+        * `stale` — value is past TTL but no fresher data is available yet (the
+          aggregator is mid-refresh). Clients may display but should flag.
+        * `fetch-failed` — last fetch attempt failed; value is the last known good
+          one (if any). Clients MUST render a grey (`unknown`) dot in this case.
+
+    StageKind:
+      type: string
+      description: |
+        Stable string identifier for each of the 14 lifecycle stages. Used as the
+        OpenAPI discriminator for the `Stage` union so generated TypeScript clients
+        produce a true discriminated union.
+      enum:
+        - inception           # 1
+        - provision           # 2
+        - develop             # 3
+        - commit-push         # 4
+        - ai-review           # 5
+        - ci-gates            # 6
+        - release             # 7
+        - deploy              # 8
+        - run                 # 9
+        - operate             # 10
+        - monitor             # 11
+        - evolve              # 12
+        - deprecate           # 13
+        - decommission        # 14
+
+    LifecyclePhase:
+      type: string
+      enum: [setup, build, ship, run, evolve, sunset]
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339 UTC timestamp.
+      example: '2026-04-16T09:30:17Z'
+
+    Link:
+      type: object
+      required: [label, href]
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          maxLength: 40
+          example: ArgoCD
+        href:
+          type: string
+          format: uri
+          example: https://argocd.fvh.internal/applications/fvh-tfds
+
+    ##########################################################################
+    # Problem+JSON error (RFC 7807)
+    ##########################################################################
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+          description: URI identifying the problem type.
+        title:
+          type: string
+          description: Short, human-readable summary.
+          example: Application not found
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          example: 404
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+        trace_id:
+          type: string
+          description: OpenTelemetry trace id, if tracing is enabled.
+
+    ##########################################################################
+    # Aggregate shapes
+    ##########################################################################
+    AppList:
+      type: object
+      required: [apps, fetchedAt]
+      additionalProperties: false
+      properties:
+        apps:
+          type: array
+          items: { $ref: '#/components/schemas/AppSummary' }
+        fetchedAt: { $ref: '#/components/schemas/Timestamp' }
+
+    AppSummary:
+      type: object
+      required: [name, source, overall, mode]
+      additionalProperties: false
+      properties:
+        name: { $ref: '#/components/schemas/AppName' }
+        mode:
+          type: string
+          enum: [deployed, pre-deploy]
+          description: |
+            `deployed` — Application exists in ArgoCD; full 14-stage view is available.
+            `pre-deploy` — lookup resolved via GitHub repo only; only Build-phase
+            stages will be populated in the corresponding status snapshot.
+        source: { $ref: '#/components/schemas/AppSource' }
+        overall: { $ref: '#/components/schemas/OverallStatus' }
+
+    AppSource:
+      type: object
+      description: Handles derived from the Application record or the fallback repo lookup.
+      required: [repo]
+      additionalProperties: false
+      properties:
+        repo:
+          type: string
+          pattern: '^[^/ ]+/[^/ ]+$'
+          example: ForumViriumHelsinki/tfds
+        defaultBranch:
+          type: string
+          example: main
+        namespace:
+          type: string
+          description: Kubernetes namespace the Application deploys into. Absent in pre-deploy mode.
+          example: tfds
+        argocdProject:
+          type: string
+          description: AppProject the Application belongs to. Absent in pre-deploy mode.
+          example: platform-automation
+        sentryProject:
+          type: string
+          nullable: true
+          description: Sentry project slug, inferred from repo name or an `fvh.io/sentry-project` label on the Application.
+          example: tfds
+        imageRepository:
+          type: string
+          nullable: true
+          description: GHCR image repo derived from `deploy/values.yaml`.
+          example: ghcr.io/forumviriumhelsinki/tfds
+
+    OverallStatus:
+      type: object
+      required: [status, summary]
+      additionalProperties: false
+      properties:
+        status: { $ref: '#/components/schemas/StatusCode' }
+        summary:
+          type: string
+          maxLength: 120
+          example: Running · Healthy
+        worstStageKind:
+          allOf:
+            - $ref: '#/components/schemas/StageKind'
+          description: The stage whose status pinned the overall badge, if any.
+          nullable: true
+
+    AppStatus:
+      type: object
+      description: |
+        Full snapshot for one Application. All 14 stages are present; stages whose
+        data source is not applicable for the current mode return `status: n/a` or
+        `status: unknown`.
+      required: [app, mode, source, overall, stages, fetchedAt]
+      additionalProperties: false
+      properties:
+        app: { $ref: '#/components/schemas/AppName' }
+        mode:
+          type: string
+          enum: [deployed, pre-deploy]
+        source: { $ref: '#/components/schemas/AppSource' }
+        overall: { $ref: '#/components/schemas/OverallStatus' }
+        stages:
+          type: array
+          minItems: 14
+          maxItems: 14
+          items: { $ref: '#/components/schemas/Stage' }
+        fetchedAt: { $ref: '#/components/schemas/Timestamp' }
+        cacheTtlSeconds:
+          type: integer
+          minimum: 0
+          description: Upper bound for how stale any value in this snapshot can be.
+
+    ##########################################################################
+    # Stage union (discriminator: kind) — one schema per lifecycle stage
+    ##########################################################################
+    StageEnvelope:
+      type: object
+      description: Fields common to every stage. Concrete stages extend this shape.
+      required: [id, kind, phase, title, status, fetchedAt, staleness]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 14
+          description: Stage number (1..14), stable.
+        kind: { $ref: '#/components/schemas/StageKind' }
+        phase: { $ref: '#/components/schemas/LifecyclePhase' }
+        title:
+          type: string
+          description: Human-readable stage title as shown in the UI.
+        status: { $ref: '#/components/schemas/StatusCode' }
+        summary:
+          type: string
+          maxLength: 160
+          description: One-line current-state sentence rendered at the top of the tooltip.
+          example: Synced · Healthy · rev abc123f
+        links:
+          type: array
+          items: { $ref: '#/components/schemas/Link' }
+        fetchedAt: { $ref: '#/components/schemas/Timestamp' }
+        staleness: { $ref: '#/components/schemas/Staleness' }
+        failureReason:
+          type: string
+          description: Populated when `staleness == fetch-failed`; short reason string.
+          example: "github: 502 Bad Gateway"
+
+    Stage:
+      oneOf:
+        - $ref: '#/components/schemas/InceptionStage'
+        - $ref: '#/components/schemas/ProvisionStage'
+        - $ref: '#/components/schemas/DevelopStage'
+        - $ref: '#/components/schemas/CommitPushStage'
+        - $ref: '#/components/schemas/AiReviewStage'
+        - $ref: '#/components/schemas/CiGatesStage'
+        - $ref: '#/components/schemas/ReleaseStage'
+        - $ref: '#/components/schemas/DeployStage'
+        - $ref: '#/components/schemas/RunStage'
+        - $ref: '#/components/schemas/OperateStage'
+        - $ref: '#/components/schemas/MonitorStage'
+        - $ref: '#/components/schemas/EvolveStage'
+        - $ref: '#/components/schemas/DeprecateStage'
+        - $ref: '#/components/schemas/DecommissionStage'
+      discriminator:
+        propertyName: kind
+        mapping:
+          inception:     '#/components/schemas/InceptionStage'
+          provision:     '#/components/schemas/ProvisionStage'
+          develop:       '#/components/schemas/DevelopStage'
+          commit-push:   '#/components/schemas/CommitPushStage'
+          ai-review:     '#/components/schemas/AiReviewStage'
+          ci-gates:      '#/components/schemas/CiGatesStage'
+          release:       '#/components/schemas/ReleaseStage'
+          deploy:        '#/components/schemas/DeployStage'
+          run:           '#/components/schemas/RunStage'
+          operate:       '#/components/schemas/OperateStage'
+          monitor:       '#/components/schemas/MonitorStage'
+          evolve:        '#/components/schemas/EvolveStage'
+          deprecate:     '#/components/schemas/DeprecateStage'
+          decommission:  '#/components/schemas/DecommissionStage'
+
+    # ── 1 Inception ───────────────────────────────────────────────────────
+    InceptionStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: inception }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                openIssueCount:
+                  type: integer
+                  minimum: 0
+                oldestOpenedAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                latestUpdatedAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                projectLabels:
+                  type: array
+                  description: The `project:*` labels found on the repo.
+                  items: { type: string }
+
+    # ── 2 Provision ───────────────────────────────────────────────────────
+    ProvisionStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: provision }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                applicationExists: { type: boolean }
+                applicationCreatedAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [type, status]
+                    properties:
+                      type: { type: string }
+                      status: { type: string, enum: ['True', 'False', 'Unknown'] }
+                      message: { type: string }
+                      lastTransitionAt:
+                        allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                        nullable: true
+
+    # ── 3 Develop ─────────────────────────────────────────────────────────
+    DevelopStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: develop }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                lastCommitAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                lastCommitSha:
+                  type: string
+                  pattern: '^[0-9a-f]{7,40}$'
+                  nullable: true
+                lastCommitAuthor:
+                  type: string
+                  nullable: true
+                lastCommitMessage:
+                  type: string
+                  maxLength: 160
+                  nullable: true
+                commitsLast7d: { type: integer, minimum: 0 }
+                commitsLast30d: { type: integer, minimum: 0 }
+                openPullRequests: { type: integer, minimum: 0 }
+
+    # ── 4 Commit & Push ───────────────────────────────────────────────────
+    CommitPushStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: commit-push }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                sampleSize: { type: integer, minimum: 0 }
+                conventionalCount: { type: integer, minimum: 0 }
+                conventionalRatio:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                lastNonConventional:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  properties:
+                    sha: { type: string }
+                    title: { type: string }
+                    url: { type: string, format: uri }
+
+    # ── 5 AI Review ───────────────────────────────────────────────────────
+    AiReviewStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: ai-review }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                latestPr:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  required: [number, url, title]
+                  properties:
+                    number: { type: integer, minimum: 1 }
+                    url: { type: string, format: uri }
+                    title: { type: string }
+                    author: { type: string }
+                    openedAt: { $ref: '#/components/schemas/Timestamp' }
+                claudeVerdict:
+                  type: string
+                  enum: [approved, changes-requested, commented, no-review]
+                claudeReviewedAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                humanVerdict:
+                  type: string
+                  enum: [approved, changes-requested, commented, no-review]
+                  description: Most recent non-bot review outcome.
+
+    # ── 6 CI Gates ────────────────────────────────────────────────────────
+    CiGatesStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: ci-gates }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                defaultBranchSha: { type: string, pattern: '^[0-9a-f]{40}$' }
+                totalChecks: { type: integer, minimum: 0 }
+                successfulChecks: { type: integer, minimum: 0 }
+                failedChecks: { type: integer, minimum: 0 }
+                pendingChecks: { type: integer, minimum: 0 }
+                requiredFailing:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CheckSummary'
+                allChecks:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CheckSummary'
+
+    CheckSummary:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string }
+        status: { type: string, enum: [queued, in_progress, completed] }
+        conclusion:
+          type: string
+          nullable: true
+          description: Populated when `status == completed`; null otherwise.
+          enum: [success, failure, neutral, cancelled, skipped, timed_out, action_required, stale]
+        required: { type: boolean }
+        url: { type: string, format: uri }
+        completedAt:
+          allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+          nullable: true
+
+    # ── 7 Release ─────────────────────────────────────────────────────────
+    ReleaseStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: release }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                latestReleaseTag:
+                  type: string
+                  nullable: true
+                  example: v1.4.2
+                latestReleaseAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                latestReleaseUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                releasePleasePr:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  required: [number, url, openedAt]
+                  properties:
+                    number: { type: integer, minimum: 1 }
+                    url: { type: string, format: uri }
+                    openedAt: { $ref: '#/components/schemas/Timestamp' }
+                    title: { type: string }
+                ghcrImageTag:
+                  type: string
+                  nullable: true
+                  description: Most recent image tag published to GHCR matching the semver pattern.
+
+    # ── 8 Deploy ──────────────────────────────────────────────────────────
+    DeployStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: deploy }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                syncStatus:
+                  type: string
+                  enum: [Synced, OutOfSync, Unknown]
+                healthStatus:
+                  type: string
+                  enum: [Healthy, Progressing, Degraded, Suspended, Missing, Unknown]
+                syncRevision:
+                  type: string
+                  description: Git SHA currently synced.
+                  nullable: true
+                syncedAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                operationPhase:
+                  type: string
+                  nullable: true
+                  enum: [Running, Succeeded, Failed, Error, Terminating]
+                  description: Latest ArgoCD operation phase; `null` when no operation is active.
+                deployedImageTag:
+                  type: string
+                  nullable: true
+                imageUpdaterLastWriteAt:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+
+    # ── 9 Run ─────────────────────────────────────────────────────────────
+    RunStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: run }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                readyReplicas: { type: integer, minimum: 0 }
+                desiredReplicas: { type: integer, minimum: 0 }
+                availableReplicas: { type: integer, minimum: 0 }
+                updatedReplicas: { type: integer, minimum: 0 }
+                deployments:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [name, ready, desired]
+                    properties:
+                      name: { type: string }
+                      ready: { type: integer, minimum: 0 }
+                      desired: { type: integer, minimum: 0 }
+                      available: { type: integer, minimum: 0 }
+                      updated: { type: integer, minimum: 0 }
+                recentPodEvents:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [type, reason, message, lastSeenAt]
+                    properties:
+                      type: { type: string, enum: [Normal, Warning] }
+                      reason: { type: string }
+                      message: { type: string }
+                      count: { type: integer, minimum: 1 }
+                      lastSeenAt: { $ref: '#/components/schemas/Timestamp' }
+
+    # ── 10 Operate ───────────────────────────────────────────────────────
+    OperateStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: operate }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                runbookFound: { type: boolean }
+                runbookPath:
+                  type: string
+                  nullable: true
+                  description: Path within the repo to the discovered runbook.
+                  example: docs/RUNBOOK.md
+                runbookUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                alertingFound: { type: boolean }
+                alertingPath:
+                  type: string
+                  nullable: true
+                backupPolicyFound: { type: boolean }
+                backupPolicyPath:
+                  type: string
+                  nullable: true
+
+    # ── 11 Monitor ────────────────────────────────────────────────────────
+    MonitorStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: monitor }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                sentryProject:
+                  type: string
+                  nullable: true
+                unresolvedIssueCount: { type: integer, minimum: 0 }
+                newIssues24h: { type: integer, minimum: 0 }
+                eventRate24h: { type: number, minimum: 0 }
+                eventRateBaseline7d: { type: number, minimum: 0 }
+                eventRateRatio:
+                  type: number
+                  minimum: 0
+                  description: eventRate24h / eventRateBaseline7d; ≥ 2.0 flips status to `fail`.
+                  nullable: true
+                highSeverityIssues:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [id, title, url, lastSeenAt, eventCount]
+                    properties:
+                      id: { type: string }
+                      title: { type: string }
+                      url: { type: string, format: uri }
+                      level:
+                        type: string
+                        enum: [fatal, error, warning, info, debug]
+                      eventCount: { type: integer, minimum: 1 }
+                      lastSeenAt: { $ref: '#/components/schemas/Timestamp' }
+
+    # ── 12 Evolve ─────────────────────────────────────────────────────────
+    EvolveStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: evolve }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                migrationIssues: { type: integer, minimum: 0 }
+                breakingChangeIssues: { type: integer, minimum: 0 }
+                openAdrProposals:
+                  type: integer
+                  minimum: 0
+                  description: Count of `docs/adrs/*.md` with status `Proposed`, if discoverable.
+                items:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [number, title, url, label]
+                    properties:
+                      number: { type: integer }
+                      title: { type: string }
+                      url: { type: string, format: uri }
+                      label: { type: string, enum: [migration, breaking-change] }
+
+    # ── 13 Deprecate ──────────────────────────────────────────────────────
+    DeprecateStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: deprecate }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                deprecationDate:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Declared sunset date (annotation `fvh.io/deprecated-on` or repo topic).
+                daysUntilSunset:
+                  type: integer
+                  nullable: true
+                  description: Negative values indicate the date has passed.
+                deprecationNoticeFound:
+                  type: boolean
+                  description: True if an in-app banner or `DEPRECATED.md` is present in the repo.
+                noticeUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+
+    # ── 14 Decommission ───────────────────────────────────────────────────
+    DecommissionStage:
+      allOf:
+        - $ref: '#/components/schemas/StageEnvelope'
+        - type: object
+          required: [details]
+          properties:
+            kind: { const: decommission }
+            details:
+              type: object
+              additionalProperties: false
+              properties:
+                applicationDeletionTimestamp:
+                  allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                  nullable: true
+                repoArchived: { type: boolean }
+                gcpTeardownIssue:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  required: [number, url]
+                  properties:
+                    number: { type: integer }
+                    url: { type: string, format: uri }
+                    state: { type: string, enum: [open, closed] }
+
+    ##########################################################################
+    # SSE event payloads (not served via a JSON endpoint, but documented here)
+    ##########################################################################
+    SnapshotEvent:
+      type: object
+      required: [kind, payload]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: snapshot }
+        payload: { $ref: '#/components/schemas/AppStatus' }
+
+    StageUpdateEvent:
+      type: object
+      required: [kind, app, stage, emittedAt]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: stage-update }
+        app: { $ref: '#/components/schemas/AppName' }
+        stage: { $ref: '#/components/schemas/Stage' }
+        emittedAt: { $ref: '#/components/schemas/Timestamp' }
+
+    OverallUpdateEvent:
+      type: object
+      required: [kind, app, overall, emittedAt]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: overall-update }
+        app: { $ref: '#/components/schemas/AppName' }
+        overall: { $ref: '#/components/schemas/OverallStatus' }
+        emittedAt: { $ref: '#/components/schemas/Timestamp' }
+
+    PingEvent:
+      type: object
+      required: [kind, emittedAt]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: ping }
+        emittedAt: { $ref: '#/components/schemas/Timestamp' }
+
+    ErrorEvent:
+      type: object
+      required: [kind, emittedAt, problem]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: error }
+        emittedAt: { $ref: '#/components/schemas/Timestamp' }
+        problem: { $ref: '#/components/schemas/Problem' }
+
+    ##########################################################################
+    # Admin / ops response shapes
+    ##########################################################################
+    RefreshAccepted:
+      type: object
+      required: [app, accepted, willRecomputeAt]
+      additionalProperties: false
+      properties:
+        app: { $ref: '#/components/schemas/AppName' }
+        accepted: { type: boolean, const: true }
+        willRecomputeAt: { $ref: '#/components/schemas/Timestamp' }
+
+    Health:
+      type: object
+      required: [status, checkedAt, upstreams]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        checkedAt: { $ref: '#/components/schemas/Timestamp' }
+        upstreams:
+          type: array
+          items:
+            type: object
+            required: [name, status, lastSuccessAt]
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+                enum: [argocd, kubernetes, github, sentry]
+              status:
+                type: string
+                enum: [ok, failing, unknown]
+              lastSuccessAt:
+                allOf: [{ $ref: '#/components/schemas/Timestamp' }]
+                nullable: true
+              consecutiveFailures:
+                type: integer
+                minimum: 0
