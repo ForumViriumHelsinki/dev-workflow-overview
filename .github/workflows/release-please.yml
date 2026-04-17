@@ -1,0 +1,20 @@
+name: Release please
+
+# Single project-version scheme per PRP-002 §6.4. Both the web bundle and
+# the aggregator image cut from the same tag; conventional-commit scopes
+# (`feat(aggregator):`, `feat(web):`) drive the changelog grouping.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    uses: ForumViriumHelsinki/.github/.github/workflows/reusable-release-please.yml@main
+    secrets:
+      token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}

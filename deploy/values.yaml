@@ -1,0 +1,154 @@
+# Helm values for the status-aggregator service. Consumed by the
+# org-wide helm-webapp chart; ArgoCD assembles the multi-source app
+# with this file and the chart pulled from GHCR.
+#
+# See PRP-002 §6.1 for field rationale.
+
+image:
+  repository: ghcr.io/forumviriumhelsinki/status-aggregator
+  # tag: set by ArgoCD Image Updater — see argocd/apps/templates/.../dev-workflow-overview.yaml
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  sessionAffinity: None   # SSE works without sticky sessions (ADR-0008)
+
+ingress:
+  enabled: true
+  className: envoy-gateway-internal   # Twingate-gated route (ADR-0009)
+  hosts:
+    - host: dev-overview.fvh.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  annotations:
+    # Passthrough text/event-stream with no buffering so SSE works.
+    gateway.envoyproxy.io/proxy-read-timeout: "3600"
+    gateway.envoyproxy.io/proxy-buffering: "off"
+    gateway.envoyproxy.io/x-accel-buffering: "no"
+
+serviceAccount:
+  create: true
+  name: status-aggregator
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources: ["pods", "events"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["argoproj.io"]
+      resources: ["applications", "appprojects"]
+      verbs: ["get", "list", "watch"]
+
+externalSecret:
+  enabled: true
+  name: status-aggregator
+  refreshInterval: 1h
+  secretStore: gcp-secret-manager
+  data:
+    - secretKey: GITHUB_APP_PRIVATE_KEY
+      remoteRef:
+        key: status-aggregator-github-app-private-key
+    - secretKey: GITHUB_APP_ID
+      remoteRef:
+        key: status-aggregator-github-app-id
+    - secretKey: GITHUB_APP_INSTALLATION_ID
+      remoteRef:
+        key: status-aggregator-github-installation-id
+    - secretKey: SENTRY_API_TOKEN
+      remoteRef:
+        key: status-aggregator-sentry-api-token
+    - secretKey: SENTRY_DSN
+      remoteRef:
+        key: status-aggregator-sentry-dsn
+
+env:
+  - name: LOG_LEVEL
+    value: info
+  - name: ENABLE_ARGOCD
+    value: "true"
+  - name: ENABLE_KUBERNETES
+    value: "true"
+  - name: ENABLE_GITHUB
+    value: "true"
+  - name: ENABLE_SENTRY
+    value: "true"
+  - name: ENABLE_FAKE
+    value: "false"
+  - name: ARGOCD_SERVER
+    value: argocd-server.argocd.svc:443
+  - name: SENTRY_ORG_SLUG
+    value: forum-virium-helsinki
+  - name: GITHUB_ORG
+    value: ForumViriumHelsinki
+  - name: APPPROJECTS_ALLOWED
+    value: platform-automation,reusable-workflows
+  - name: GITHUB_APP_ID
+    valueFrom:
+      secretKeyRef:
+        name: status-aggregator
+        key: GITHUB_APP_ID
+  - name: GITHUB_APP_INSTALLATION_ID
+    valueFrom:
+      secretKeyRef:
+        name: status-aggregator
+        key: GITHUB_APP_INSTALLATION_ID
+  - name: GITHUB_APP_PRIVATE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: status-aggregator
+        key: GITHUB_APP_PRIVATE_KEY
+  - name: SENTRY_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: status-aggregator
+        key: SENTRY_API_TOKEN
+  - name: SENTRY_DSN
+    valueFrom:
+      secretKeyRef:
+        name: status-aggregator
+        key: SENTRY_DSN
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 3
+  periodSeconds: 10
+  timeoutSeconds: 3
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+serviceMonitor:
+  enabled: true
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+# GOFF endpoint is injected automatically when featureFlags.enabled=true
+# (see FVH feature-flags rule). GOFF_CLIENT_ID is a no-op in v1 per
+# PRP-002 §4.5; reserved for future feature-flag-driven rollouts of
+# per-app visibility toggles.
+featureFlags:
+  enabled: true

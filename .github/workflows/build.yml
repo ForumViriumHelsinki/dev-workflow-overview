@@ -1,0 +1,60 @@
+name: Build & verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web build + OpenAPI type sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # Verify src/services/types.ts is in sync with the OpenAPI spec.
+      - name: Check OpenAPI-generated types
+        run: bun run openapi:check
+
+      # Build includes the prebuild hook that regenerates types.
+      - run: bun run build
+
+      - name: Byte-identity guard (static mode)
+        run: bun run byte-identity
+
+  aggregator:
+    name: Aggregator Go build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aggregator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+          cache-dependency-path: aggregator/go.sum
+
+      - run: go mod download
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./... -count=1 -timeout=2m
+
+      - name: go build
+        run: go build ./cmd/aggregator

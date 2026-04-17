@@ -1,0 +1,27 @@
+name: Container build
+
+# Build and publish the status-aggregator container image. Calls the
+# org-wide reusable workflow; no custom build logic here.
+#
+# PRP-002 §6.4: build on release-please PR, promote on published
+# release, Trivy scan without SARIF upload (FVH has no GHAS).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "aggregator/**"
+      - "deploy/**"
+      - ".github/workflows/container-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ForumViriumHelsinki/.github/.github/workflows/reusable-container-build.yml@main
+    with:
+      image-name: status-aggregator
+      context: aggregator
+      dockerfile: aggregator/Dockerfile
+      # Trivy is run inline; SARIF upload is disabled per FVH GHAS constraint.
+      trivy-upload-sarif: false
+    secrets: inherit

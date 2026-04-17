@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "bootstrap-sha": "15b521c",
+  "packages": {
+    ".": {
+      "package-name": "dev-workflow-overview",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "docs", "section": "Documentation", "hidden": false },
+        { "type": "chore", "section": "Chores", "hidden": true },
+        { "type": "refactor", "section": "Refactors", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "style", "section": "Style", "hidden": true }
+      ]
+    }
+  },
+  "plugins": [
+    { "type": "sentence-case" }
+  ]
+}

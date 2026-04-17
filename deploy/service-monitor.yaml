@@ -1,0 +1,21 @@
+# Prometheus ServiceMonitor for the status-aggregator. Applied by the
+# helm-webapp chart when serviceMonitor.enabled=true in values.yaml.
+# This file is kept alongside values.yaml so it's reviewable as part of
+# the same PR and serves as the documented scrape contract.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: status-aggregator
+  labels:
+    app.kubernetes.io/name: status-aggregator
+    app.kubernetes.io/component: aggregator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: status-aggregator
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
