@@ -67,7 +67,10 @@ func run() error {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
-	router.Use(middleware.Timeout(30 * time.Second))
+	// middleware.Timeout is intentionally not applied globally — it
+	// wraps the ResponseWriter in a way that breaks long-lived SSE
+	// streams. Short per-handler deadlines come from the handler's
+	// r.Context() and the net/http ReadHeaderTimeout below.
 	router.Use(observability.HTTPMetrics(metrics))
 
 	api.Mount(router, api.Deps{
