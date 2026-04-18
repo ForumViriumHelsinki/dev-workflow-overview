@@ -8,17 +8,25 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/api"
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/cache"
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/config"
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/observability"
+	argoadapter "github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/argocd"
+	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/cluster"
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/fake"
+	k8sadapter "github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/kubernetes"
 )
 
 // Build metadata populated via -ldflags at build time.
@@ -57,11 +65,11 @@ func run() error {
 	hot := cache.NewHot()
 	hub := api.NewHub(logger)
 
-	// v1 ships with the fake source only at the main.go level;
-	// wiring for live adapters (argocd/kubernetes/github/sentry) lives
-	// behind feature flags activated once go.sum is populated.
-	fakeSource := fake.New()
-	_ = fakeSource // referenced by the fake fetcher; adapters wire in S2.6–S2.9.
+	source, err := buildSource(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("source: %w", err)
+	}
+	logger.Info("source configured", "source", source.Name())
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -76,7 +84,7 @@ func run() error {
 	api.Mount(router, api.Deps{
 		Hot:     hot,
 		Hub:     hub,
-		Source:  fakeSource,
+		Source:  source,
 		Metrics: metrics,
 		Health:  health,
 		Logger:  logger,
@@ -115,4 +123,76 @@ func run() error {
 	hub.Close()
 	logger.Info("shutdown complete")
 	return nil
+}
+
+// buildSource picks a Source implementation based on the enablement
+// flags. ENABLE_ARGOCD=true switches to the in-cluster composite that
+// fans out to the ArgoCD, Kubernetes (and later GitHub/Sentry) partial
+// adapters. Otherwise the deterministic fake source is used for local
+// dev and integration tests.
+func buildSource(cfg config.Config, logger *slog.Logger) (api.Source, error) {
+	if !cfg.EnableArgoCD && !cfg.EnableKubernetes {
+		logger.Info("using fake source (no live adapters enabled)")
+		return fake.New(), nil
+	}
+
+	kubeCfg, err := loadKubeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("kube config: %w", err)
+	}
+	dyn, err := dynamic.NewForConfig(kubeCfg)
+	if err != nil {
+		return nil, fmt.Errorf("dynamic client: %w", err)
+	}
+	cs, err := kubernetes.NewForConfig(kubeCfg)
+	if err != nil {
+		return nil, fmt.Errorf("clientset: %w", err)
+	}
+
+	opts := cluster.Options{
+		Dynamic:         dyn,
+		Clientset:       cs,
+		ArgoCDNamespace: cfg.ArgoCDNamespace,
+		ArgoCDServerURL: argoServerDeepLinkURL(cfg.ArgoCDServer),
+		AllowedProjects: cfg.AppProjectsSet(),
+	}
+	if cfg.EnableArgoCD {
+		opts.ArgoCD = argoadapter.New(dyn, cfg.ArgoCDNamespace, opts.ArgoCDServerURL)
+	}
+	if cfg.EnableKubernetes {
+		opts.Kubernetes = k8sadapter.New(cs)
+	}
+	return cluster.New(opts), nil
+}
+
+// loadKubeConfig prefers in-cluster config when a service-account token
+// is mounted; otherwise falls back to $KUBECONFIG / ~/.kube/config so
+// the binary can be `go run` against a local cluster too.
+func loadKubeConfig() (*rest.Config, error) {
+	if config.RunningInCluster() {
+		return rest.InClusterConfig()
+	}
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			kubeconfig = filepath.Join(home, ".kube", "config")
+		}
+	}
+	return clientcmd.BuildConfigFromFlags("", kubeconfig)
+}
+
+// argoServerDeepLinkURL turns ARGOCD_SERVER (a grpc/svc address) into a
+// best-effort HTTP base URL for tooltip deep links. Empty string means
+// no deep links.
+func argoServerDeepLinkURL(server string) string {
+	if server == "" {
+		return ""
+	}
+	// Intentionally simple: production sets a full URL via the
+	// ArgoCD Application's spec; the aggregator's URL builder just
+	// prefixes "https://" when the user didn't supply a scheme.
+	if len(server) >= 7 && (server[:7] == "http://" || (len(server) >= 8 && server[:8] == "https://")) {
+		return server
+	}
+	return "https://" + server
 }

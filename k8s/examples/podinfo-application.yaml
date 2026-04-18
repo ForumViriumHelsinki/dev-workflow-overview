@@ -1,0 +1,32 @@
+# Demo ArgoCD Application used to exercise the status-aggregator's
+# cluster source against a real Application. Apply with:
+#
+#   kubectl --context=kind-fvh-dev apply -f k8s/examples/podinfo-application.yaml
+#
+# podinfo is Stefan Prodan's public demo app; the kustomize overlay at
+# kustomize/ in that repo deploys a single Deployment + Service in the
+# target namespace. AppProject `default` is used because that is what
+# ArgoCD ships with out of the box on kind-fvh-dev; the aggregator's
+# APPPROJECTS_ALLOWED env var includes `default` in local dev.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/stefanprodan/podinfo
+    targetRevision: master
+    path: kustomize
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: podinfo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -29,6 +29,7 @@ type Config struct {
 
 	// ArgoCD / Kubernetes.
 	ArgoCDServer       string   `envconfig:"ARGOCD_SERVER" default:"argocd-server.argocd.svc:443"`
+	ArgoCDNamespace    string   `envconfig:"ARGOCD_NAMESPACE" default:"argocd"`
 	AppProjectsAllowed []string `envconfig:"APPPROJECTS_ALLOWED"`
 
 	// Feature flags hook (unused in v1 per PRP-002).

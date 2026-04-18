@@ -38,17 +38,19 @@ spec:
             - name: LOG_LEVEL
               value: debug
             - name: ENABLE_FAKE
-              value: "true"
+              value: "false"
             - name: ENABLE_ARGOCD
-              value: "false"
+              value: "true"
             - name: ENABLE_KUBERNETES
-              value: "false"
+              value: "true"
             - name: ENABLE_GITHUB
               value: "false"
             - name: ENABLE_SENTRY
               value: "false"
             - name: ARGOCD_SERVER
               value: argocd-server.argocd.svc:443
+            - name: ARGOCD_NAMESPACE
+              value: argocd
             - name: APPPROJECTS_ALLOWED
               value: default,platform-automation
           # Secret env refs for GITHUB_* / SENTRY_* are intentionally
