@@ -83,7 +83,7 @@ func run() error {
 	// r.Context() and the net/http ReadHeaderTimeout below.
 	router.Use(observability.HTTPMetrics(metrics))
 
-	api.Mount(router, api.Deps{
+	api.Mount(router, &api.Deps{
 		Hot:     hot,
 		Hub:     hub,
 		Source:  source,

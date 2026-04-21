@@ -9,6 +9,7 @@
       },
       "devDependencies": {
         "@open-wc/testing": "^4.0.0",
+        "@playwright/test": "^1.49.1",
         "@types/bun": "latest",
         "@vitest/browser": "^2.1.9",
         "jsdom": "^29.0.2",
@@ -152,6 +153,8 @@
     "@open-wc/testing-helpers": ["@open-wc/testing-helpers@3.0.1", "", { "dependencies": { "@open-wc/scoped-elements": "^3.0.2", "lit": "^2.0.0 || ^3.0.0", "lit-html": "^2.0.0 || ^3.0.0" } }, "sha512-hyNysSatbgT2FNxHJsS3rGKcLEo6+HwDFu1UQL6jcSQUabp/tj3PyX7UnXL3H5YGv0lJArdYLSnvjLnjn3O2fw=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.123.0", "", {}, "sha512-YtECP/y8Mj1lSHiUWGSRzy/C6teUKlS87dEfuVKT09LgQbUsBW1rNg+MiJ4buGu3yuADV60gbIvo9/HplA56Ew=="],
+
+    "@playwright/test": ["@playwright/test@1.59.1", "", { "dependencies": { "playwright": "1.59.1" }, "bin": { "playwright": "cli.js" } }, "sha512-PG6q63nQg5c9rIi4/Z5lR5IVF7yU5MqmKaPOe0HSc0O2cX1fPi96sUQu5j7eo4gKCkB2AnNGoWt7y4/Xx3Kcqg=="],
 
     "@polka/url": ["@polka/url@1.0.0-next.29", "", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
 

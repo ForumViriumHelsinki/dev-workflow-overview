@@ -27,7 +27,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	src := fake.New()
 
 	r := chi.NewRouter()
-	Mount(r, Deps{
+	Mount(r, &Deps{
 		Hot: hot, Hub: hub, Source: src,
 		Metrics: metrics, Health: health, Logger: logger,
 	})

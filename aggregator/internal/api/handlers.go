@@ -38,19 +38,21 @@ type Deps struct {
 	refreshGuards map[string]time.Time
 }
 
-// Mount attaches all routes onto the given router.
-func Mount(r chi.Router, d Deps) {
+// Mount attaches all routes onto the given router. Deps is accepted
+// by pointer because it embeds a sync.Mutex for the per-app refresh
+// guard; copying the struct would trigger go vet (`passes lock by
+// value`) and silently break the throttle.
+func Mount(r chi.Router, d *Deps) {
 	d.refreshGuards = make(map[string]time.Time)
-	dp := &d
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/apps", dp.listApps)
-		r.Get("/apps/{name}/status", dp.getStatus)
-		r.Get("/apps/{name}/events", dp.streamEvents)
-		r.Post("/apps/{name}/refresh", dp.refresh)
+		r.Get("/apps", d.listApps)
+		r.Get("/apps/{name}/status", d.getStatus)
+		r.Get("/apps/{name}/events", d.streamEvents)
+		r.Post("/apps/{name}/refresh", d.refresh)
 	})
 
-	r.Get("/healthz", dp.healthz)
+	r.Get("/healthz", d.healthz)
 	r.Get("/metrics", d.Metrics.Handler().ServeHTTP)
 }
 
