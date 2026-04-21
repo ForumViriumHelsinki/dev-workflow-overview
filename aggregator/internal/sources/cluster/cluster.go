@@ -101,8 +101,10 @@ func (s *Source) List(ctx context.Context) ([]domain.AppSummary, error) {
 
 // Snapshot resolves an Application to a full AppRef, fans out to every
 // configured partial adapter concurrently, and merges their outputs
-// into the 14-stage snapshot. Stages no adapter populated stay at
-// status `unknown`.
+// into the 14-stage snapshot. Stages no adapter populated are marked
+// `n/a` so DeriveOverall ignores them — this is what keeps the overall
+// badge honest when the aggregator runs with a subset of partial
+// adapters enabled (e.g. GitHub/Sentry disabled in v1).
 func (s *Source) Snapshot(ctx context.Context, ref domain.AppRef) (domain.AppStatus, error) {
 	if s.opts.Dynamic == nil {
 		return domain.AppStatus{}, errors.New("cluster: dynamic client not configured")
@@ -127,7 +129,8 @@ func (s *Source) Snapshot(ctx context.Context, ref domain.AppRef) (domain.AppSta
 			Kind:      so.Kind,
 			Phase:     so.Phase,
 			Title:     so.Title,
-			Status:    domain.StatusUnknown,
+			Status:    domain.StatusNA,
+			Summary:   "No live source configured",
 			FetchedAt: now,
 			Staleness: domain.StalenessFresh,
 		}

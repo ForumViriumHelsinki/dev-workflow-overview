@@ -5,6 +5,10 @@ node_modules
 out
 dist
 *.tgz
+# The aggregator embeds a placeholder dist/ at compile time (D-static.a)
+# so `go:embed` resolves outside the Docker multi-stage build. Keep it.
+!aggregator/internal/web/dist/
+!aggregator/internal/web/dist/**
 
 # code coverage
 coverage

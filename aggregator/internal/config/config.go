@@ -54,6 +54,11 @@ type Config struct {
 	// deterministic fixture so the frontend can be exercised without
 	// any live infrastructure.
 	EnableFake bool `envconfig:"ENABLE_FAKE" default:"true"`
+
+	// EnablePprof mounts the net/http/pprof handlers at /debug/pprof.
+	// Off by default; used by the C.10 SSE load test to capture heap
+	// and goroutine profiles. MUST stay false in production.
+	EnablePprof bool `envconfig:"ENABLE_PPROF" default:"false"`
 }
 
 // Load reads configuration from the environment and validates it.

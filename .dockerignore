@@ -1,0 +1,27 @@
+# Repo-root dockerignore. The aggregator image (Dockerfile at
+# aggregator/Dockerfile) builds with the repo root as its context
+# because it embeds the Vite bundle (D-static.a).
+
+.git
+.github
+.claude
+
+# Dev-only clutter
+node_modules
+/dist
+coverage.*
+tmp/
+.DS_Store
+
+# Bundles of prior builds / test runs that shouldn't enter the image
+aggregator/tmp
+aggregator/sse-loadtest
+aggregator/status-aggregator
+
+# Keep markdown and test files out of the image — both container stages
+# (bun + go) only need the actual build inputs.
+**/*.md
+**/*_test.go
+
+# Screenshots captured for README prose
+*.png

@@ -1,0 +1,4 @@
+# Go build artifacts from `go build ./cmd/...` when run at the module root.
+/aggregator
+/sse-loadtest
+/status-aggregator

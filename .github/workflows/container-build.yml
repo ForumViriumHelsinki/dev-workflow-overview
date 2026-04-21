@@ -10,9 +10,18 @@ on:
   pull_request:
     branches: [main]
     paths:
+      # Aggregator code and Helm values obviously trigger a rebuild.
       - "aggregator/**"
       - "deploy/**"
       - ".github/workflows/container-build.yml"
+      # The Go binary also embeds the frontend bundle (D-static.a), so
+      # any frontend change has to trigger an image rebuild too.
+      - "src/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "tsconfig.json"
+      - "package.json"
+      - "bun.lock"
   workflow_dispatch:
 
 jobs:
@@ -20,7 +29,9 @@ jobs:
     uses: ForumViriumHelsinki/.github/.github/workflows/reusable-container-build.yml@main
     with:
       image-name: status-aggregator
-      context: aggregator
+      # Repo root: the Dockerfile copies package.json / src/ into the
+      # build stage that produces the embedded frontend bundle.
+      context: .
       dockerfile: aggregator/Dockerfile
       # Trivy is run inline; SARIF upload is disabled per FVH GHAS constraint.
       trivy-upload-sarif: false

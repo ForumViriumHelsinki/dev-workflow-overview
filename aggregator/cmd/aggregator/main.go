@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/cluster"
 	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/fake"
 	k8sadapter "github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/sources/kubernetes"
+	"github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator/internal/web"
 )
 
 // Build metadata populated via -ldflags at build time.
@@ -90,6 +92,27 @@ func run() error {
 		Logger:  logger,
 		Version: version,
 	})
+
+	if cfg.EnablePprof {
+		// Dev/profiling only — must stay off in production.
+		logger.Warn("pprof enabled — do not run with ENABLE_PPROF in production")
+		router.Route("/debug/pprof", func(r chi.Router) {
+			r.Get("/", pprof.Index)
+			r.Get("/cmdline", pprof.Cmdline)
+			r.Get("/profile", pprof.Profile)
+			r.Post("/symbol", pprof.Symbol)
+			r.Get("/symbol", pprof.Symbol)
+			r.Get("/trace", pprof.Trace)
+			r.Get("/{name}", func(w http.ResponseWriter, req *http.Request) {
+				pprof.Handler(chi.URLParam(req, "name")).ServeHTTP(w, req)
+			})
+		})
+	}
+
+	// Serve the embedded frontend bundle on any path the API routes
+	// didn't match. Chi's NotFound handler runs after every Mount/Route
+	// above, so /api/* and /healthz still win.
+	router.NotFound(web.Handler().ServeHTTP)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
