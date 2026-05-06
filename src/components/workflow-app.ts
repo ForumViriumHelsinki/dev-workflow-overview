@@ -145,6 +145,11 @@ export class WorkflowApp extends LitElement {
       .pipeline {
         padding: 1.2rem 1.5rem 4rem;
         overflow-x: auto;
+        /* overflow-x:auto forces overflow-y to compute to auto (visible is
+           invalid alongside a non-visible axis), so the pipeline would steal
+           page-level wheel events. clip keeps horizontal scrolling without
+           establishing a vertical scroll container. */
+        overflow-y: clip;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
         scrollbar-color: var(--border) transparent;
