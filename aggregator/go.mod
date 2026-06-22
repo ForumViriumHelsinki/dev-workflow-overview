@@ -9,7 +9,7 @@ require (
 	github.com/google/go-github/v64 v64.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.20.5
-	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
+	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
 	golang.org/x/sync v0.21.0
 	k8s.io/api v0.31.3
 	k8s.io/apimachinery v0.31.3
