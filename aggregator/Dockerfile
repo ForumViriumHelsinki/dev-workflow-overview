@@ -8,7 +8,7 @@
 ## Build context is the repository root, not aggregator/. CI has to
 ## pass `-f aggregator/Dockerfile .` for this to resolve.
 
-FROM oven/bun:1.1-alpine AS web
+FROM oven/bun:1.3-alpine AS web
 WORKDIR /web
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
