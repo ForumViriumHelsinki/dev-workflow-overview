@@ -1,38 +1,47 @@
 name: Container build
 
-# Build and publish the status-aggregator container image. Calls the
-# org-wide reusable workflow; no custom build logic here.
+# PR phase of the build-once/promote pattern (PRP-002 §6.4).
 #
-# PRP-002 §6.4: build on release-please PR, promote on published
-# release, Trivy scan without SARIF upload (FVH has no GHAS).
+# Builds ghcr.io/forumviriumhelsinki/status-aggregator:next-{version}
+# on the release-please PR so container-release.yml can promote it to
+# the semver tags on publish instead of rebuilding.
+#
+# Ordinary code PRs are covered by build.yml (web bundle + Go build and
+# test); this workflow exists only to pre-build the release image.
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      # Aggregator code and Helm values obviously trigger a rebuild.
-      - "aggregator/**"
-      - "deploy/**"
-      - ".github/workflows/container-build.yml"
-      # The Go binary also embeds the frontend bundle (D-static.a), so
-      # any frontend change has to trigger an image rebuild too.
-      - "src/**"
-      - "index.html"
-      - "vite.config.ts"
-      - "tsconfig.json"
-      - "package.json"
-      - "bun.lock"
   workflow_dispatch:
+
+concurrency:
+  group: container-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    # Only the release-please PR carries the version bump this image is
+    # keyed on. workflow_dispatch is kept so the build path can be
+    # exercised without waiting for a release PR — head_ref is empty
+    # there, so the startsWith check alone would skip it.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.head_ref, 'release-please--branches--main--components--')
     uses: ForumViriumHelsinki/.github/.github/workflows/reusable-container-build.yml@main
     with:
-      image-name: status-aggregator
+      # The reusable prepends only `ghcr.io/`, so the owner segment
+      # belongs here. Must match deploy/values.yaml image.repository.
+      image-name: forumviriumhelsinki/status-aggregator
       # Repo root: the Dockerfile copies package.json / src/ into the
       # build stage that produces the embedded frontend bundle.
       context: .
       dockerfile: aggregator/Dockerfile
-      # Trivy is run inline; SARIF upload is disabled per FVH GHAS constraint.
-      trivy-upload-sarif: false
-    secrets: inherit
+      # release-type: simple keeps the version in the manifest, not in
+      # package.json — the reusable's default `jq -r '.version'
+      # package.json` reads a key that does not exist here.
+      version-command: >-
+        jq -r '.["."]' .release-please-manifest.json
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
