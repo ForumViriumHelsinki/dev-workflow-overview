@@ -1,0 +1,32 @@
+name: Container release
+
+# Release phase of the build-once/promote pattern (PRP-002 §6.4).
+#
+# Promotes the :next-{version} image built by container-build.yml to the
+# semver tags with a manifest-only retag. Falls back to a full rebuild
+# when that image is absent or its build context no longer matches the
+# release commit.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    uses: ForumViriumHelsinki/.github/.github/workflows/reusable-container-release.yml@main
+    with:
+      # Must match container-build.yml and deploy/values.yaml
+      # image.repository — the reusable prepends only `ghcr.io/`.
+      image-name: forumviriumhelsinki/status-aggregator
+      # include-component-in-tag is false, so tags read v0.2.0.
+      tag-prefix: "v"
+      # Used only by the fallback rebuild path.
+      context: .
+      dockerfile: aggregator/Dockerfile
+      build-args: |
+        VERSION=${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      actions: read
