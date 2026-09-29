@@ -249,7 +249,7 @@ export const tooltips: Record<string, TooltipData> = {
         gate: true,
       },
       {
-        text: "All 3 use Claude (haiku model) to analyze results and comment on PRs",
+        text: "All 3 use Claude (Opus 5.5, low effort) and publish findings to the job summary and PR file annotations",
       },
       { text: "Optional fail-on-high / fail-on-critical flags to block merges" },
     ],
