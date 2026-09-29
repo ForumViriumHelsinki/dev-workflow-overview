@@ -1,6 +1,6 @@
 module github.com/ForumViriumHelsinki/dev-workflow-overview/aggregator
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.18.0
@@ -10,7 +10,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.23.0
 	k8s.io/api v0.31.3
 	k8s.io/apimachinery v0.31.3
 	k8s.io/client-go v0.31.3
