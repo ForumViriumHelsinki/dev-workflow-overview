@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/ForumViriumHelsinki/dev-workflow-overview/compare/v0.2.0...v0.2.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **ci:** Publish the container image on release ([#26](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/26)) ([31ed07d](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/31ed07d844d7483e6c768fe1f549158636dc994a))
+
+
+### Documentation
+
+* Describe the security scans' current model and output ([#31](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/31)) ([608fdd2](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/608fdd22913247b8fb9e859bc2d1f36e79dd5939))
+
 ## [0.2.0](https://github.com/ForumViriumHelsinki/dev-workflow-overview/compare/v0.1.0...v0.2.0) (2026-08-28)
 
 
