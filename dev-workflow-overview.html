@@ -880,7 +880,7 @@ const tooltips = {
       {text: 'reusable-security-secrets.yml — leaked API keys, tokens, private keys, hardcoded credentials (AWS, Stripe, Slack, Google, GitHub patterns)', gate: true},
       {text: 'reusable-security-deps.yml — dependency CVE audit via npm/bun/pip/cargo native tools, outputs CRITICAL_HIGH count', gate: true},
       {text: 'reusable-security-owasp.yml — OWASP Top 10 2021 static analysis (A01–A10: broken access control, injection, SSRF, etc.)', gate: true},
-      {text: 'All 3 use Claude (haiku model) to analyze results and comment on PRs', gate: false},
+      {text: 'All 3 use Claude (Opus 5.5, low effort) and publish findings to the job summary and PR file annotations', gate: false},
       {text: 'Optional fail-on-high / fail-on-critical flags to block merges', gate: false}
     ]
   },
