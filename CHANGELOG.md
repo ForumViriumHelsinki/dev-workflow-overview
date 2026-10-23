@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1](https://github.com/ForumViriumHelsinki/dev-workflow-overview/compare/v0.2.0...v0.2.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **ci:** Publish the container image on release ([#26](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/26)) ([31ed07d](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/31ed07d844d7483e6c768fe1f549158636dc994a))
+* **deps:** Update module github.com/bradleyfalzon/ghinstallation/v2 to v2.19.0 ([#29](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/29)) ([d6d3c3f](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/d6d3c3fe4b02627dec18c66393c21f45b3ddfa43))
+* **deps:** Update module github.com/go-chi/chi/v5 to v5.5.0 ([#27](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/27)) ([0b9475f](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/0b9475f9243c289f68ae6a0925a572ac6977944d))
+* **deps:** Update module github.com/prometheus/client_golang to v1.25.0 ([#12](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/12)) ([9a78a07](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/9a78a0796de1e56e5b7ee6d2ca5463a91d3fdc5c))
+
+
+### Documentation
+
+* Describe the security scans' current model and output ([#31](https://github.com/ForumViriumHelsinki/dev-workflow-overview/issues/31)) ([608fdd2](https://github.com/ForumViriumHelsinki/dev-workflow-overview/commit/608fdd22913247b8fb9e859bc2d1f36e79dd5939))
+
 ## [0.2.0](https://github.com/ForumViriumHelsinki/dev-workflow-overview/compare/v0.1.0...v0.2.0) (2026-08-28)
 
 
