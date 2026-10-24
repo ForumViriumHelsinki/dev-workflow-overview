@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
-	github.com/getsentry/sentry-go v0.30.0
+	github.com/getsentry/sentry-go v0.50.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/google/go-github/v64 v64.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
